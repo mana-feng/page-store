@@ -1,18 +1,16 @@
 #!/bin/bash
-# ==============================================
-# Newsworthy Editor - Development Server Starter
-# ==============================================
-# This script starts both frontend and backend servers
-# for the Newsworthy Editor application.
-#
+# ================================================================
+# Newsworthy Editor - Quick Start Script
+# For: Linux & macOS
+# 
 # Prerequisites:
 # - Node.js (v16 or higher)
-# - npm or yarn
+# - npm
 #
 # Usage:
 #   chmod +x start-servers.sh
 #   ./start-servers.sh
-# ==============================================
+# ================================================================
 
 # Color codes for output
 CYAN='\033[0;36m'

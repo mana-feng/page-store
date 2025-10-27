@@ -8,7 +8,11 @@ import {
   listGitHubFiles, 
   renameInGitHub,
   validateGitHubConfig,
-  testGitHubConfig
+  testGitHubConfig,
+  getFileFromGitHub,
+  syncWithGitHub,
+  getAllFilesFromGitHub,
+  pullAllFromGitHub
 } from './github.js';
 import { githubConfig } from './config-store.js';
 
@@ -397,6 +401,163 @@ app.get('/api/github/files', async (req, res) => {
     res.json(files);
   } catch (error) {
     console.error('List GitHub files error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get specific file content from GitHub
+app.get('/api/github/file/:path(*)', async (req, res) => {
+  try {
+    const { path } = req.params;
+    const fileData = await getFileFromGitHub(decodeURIComponent(path));
+    res.json(fileData);
+  } catch (error) {
+    console.error('Get GitHub file error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all files with content from GitHub
+app.get('/api/github/files/all', async (req, res) => {
+  try {
+    const files = await getAllFilesFromGitHub();
+    res.json(files);
+  } catch (error) {
+    console.error('Get all GitHub files error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/github/pull-all', async (req, res) => {
+  try {
+    const result = await pullAllFromGitHub();
+    
+    if (!result.success) {
+      return res.json(result);
+    }
+    
+    if (result.files.length === 0) {
+      return res.json(result);
+    }
+    
+    // Save each file to database
+    const savedFiles = [];
+    const errors = [];
+    
+    for (const file of result.files) {
+      try {
+        // Use filename without extension as title (more reliable than HTML <title> tag)
+        const title = file.name.replace('.html', '');
+        
+        // Check if file already exists by filename
+        const existingPages = pageOperations.getAll.all();
+        const existingPage = existingPages.find(p => p.filename === file.name);
+        
+        if (existingPage) {
+          // Update existing page
+          pageOperations.update.run({
+            id: existingPage.id,
+            title: title,
+            filename: file.name,
+            github_url: file.url,
+            group_id: null, // No group assigned for pulled files
+            sort_order: 0,
+            html_content: file.content,
+            preview_image: null
+          });
+          console.log(`Updated existing page: ${file.name}`);
+        } else {
+          // Create new page
+          const insertResult = pageOperations.create.run({
+            title: title,
+            filename: file.name,
+            github_url: file.url,
+            group_id: null, // No group assigned for pulled files
+            sort_order: 0,
+            html_content: file.content,
+            preview_image: null
+          });
+          console.log(`Created new page: ${file.name} with ID: ${insertResult.lastInsertRowid}`);
+        }
+        
+        savedFiles.push({
+          name: file.name,
+          title: title,
+          url: file.url
+        });
+        
+      } catch (error) {
+        console.error(`Failed to save file ${file.name}:`, error);
+        errors.push({
+          file: file.name,
+          error: error.message
+        });
+      }
+    }
+    
+    // Return success response with saved files info
+    res.json({
+      success: true,
+      message: `Successfully pulled and saved ${savedFiles.length} files from GitHub`,
+      files: savedFiles,
+      fileTitles: savedFiles.map(f => f.title),
+      errors: errors,
+      combinedContent: result.combinedContent
+    });
+    
+  } catch (error) {
+    console.error('GitHub pull all error:', error);
+    res.status(500).json({ 
+      error: 'Failed to pull all files from GitHub',
+      details: error.message 
+    });
+  }
+});
+
+// Sync file with GitHub
+app.post('/api/github/sync', async (req, res) => {
+  try {
+    const { filePath, localContent } = req.body;
+    
+    if (!filePath) {
+      return res.status(400).json({ error: 'File path is required' });
+    }
+
+    const syncResult = await syncWithGitHub(filePath, localContent);
+    res.json(syncResult);
+  } catch (error) {
+    console.error('GitHub sync error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Pull file from GitHub (download and load into editor)
+app.post('/api/github/pull', async (req, res) => {
+  try {
+    const { filePath } = req.body;
+    
+    if (!filePath) {
+      return res.status(400).json({ error: 'File path is required' });
+    }
+
+    const fileData = await getFileFromGitHub(filePath);
+    
+    // Extract title from HTML content
+    const titleMatch = fileData.content.match(/<title[^>]*>(.*?)<\/title>/i);
+    const title = titleMatch ? titleMatch[1] : fileData.name.replace('.html', '');
+    
+    // Extract filename from path
+    const filename = fileData.name;
+    
+    res.json({
+      success: true,
+      fileData,
+      title,
+      filename,
+      content: fileData.content
+    });
+  } catch (error) {
+    console.error('GitHub pull error:', error);
     res.status(500).json({ error: error.message });
   }
 });

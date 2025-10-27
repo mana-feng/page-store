@@ -26,6 +26,22 @@
             maxWidth: '100%'
           }" />
         </figure>
+
+        <!-- Video Block -->
+        <div v-else-if="blk.type === 'video'" class="video-block">
+          <iframe 
+            :width="blk.width" 
+            :height="blk.height"
+            :src="`https://www.youtube.com/embed/${blk.videoId}`"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+            :style="{
+              maxWidth: '100%',
+              borderRadius: '4px'
+            }"
+          ></iframe>
+        </div>
       </div>
 
     </div>
@@ -188,6 +204,19 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   box-shadow: 0 0 6px rgba(0, 0, 0, 0.1);
   object-fit: cover;
+}
+
+.video-block {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0;
+}
+
+.video-block iframe {
+  border: none;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .text-wrapper {

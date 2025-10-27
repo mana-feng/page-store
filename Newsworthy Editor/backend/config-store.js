@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { encrypt, decrypt, isEncrypted } from './crypto-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,6 +62,12 @@ export const githubConfig = {
   },
 
   set: (config) => {
+    if (config.token) {
+      if (!isEncrypted(config.token)) {
+        console.log('🔐 Encrypting GitHub token...');
+        config.token = encrypt(config.token);
+      }
+    }
     configStore.set('github_config', config);
   },
 
@@ -74,8 +81,19 @@ export const githubConfig = {
     if (!config) {
       return null;
     }
+    
+    let decryptedToken = config.token;
+    if (config.token && isEncrypted(config.token)) {
+      try {
+        decryptedToken = decrypt(config.token);
+      } catch (error) {
+        console.error('Failed to decrypt token:', error);
+        return null;
+      }
+    }
+    
     return {
-      token: config.token,
+      token: decryptedToken,
       owner: config.owner,
       repo: config.repo,
       branch: config.branch || 'gh-pages',

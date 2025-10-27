@@ -24,6 +24,9 @@
           @input="handleSearch"
         />
       </div>
+      <button @click="handlePullAllFromGitHub" class="btn btn-pull" :disabled="!githubConnected">
+        ⬇️ Pull All from GitHub
+      </button>
       <button @click="showGroupDialog = true" class="btn btn-primary">
         ➕ New Group
       </button>
@@ -324,6 +327,19 @@ const totalPagesCount = computed(() => {
 });
 
 // Methods
+// Helper function to build full GitHub URL from relative path
+function buildGitHubUrl(relativePath) {
+  if (!relativePath || !githubOwner.value || !githubRepo.value) {
+    return null;
+  }
+  // If it's already a full URL, return as is
+  if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+    return relativePath;
+  }
+  // Build full URL from relative path
+  return `https://${githubOwner.value}.github.io/${githubRepo.value}/${relativePath}`;
+}
+
 async function checkGitHubStatus() {
   try {
     const response = await fetch(`${API_BASE_URL}/github/status`);
@@ -474,8 +490,9 @@ async function deletePage(id) {
 }
 
 function openPage(page) {
-  if (page.github_url) {
-    window.open(page.github_url, '_blank');
+  const fullUrl = buildGitHubUrl(page.github_url);
+  if (fullUrl) {
+    window.open(fullUrl, '_blank');
   } else {
     alert('GitHub URL not available');
   }
@@ -492,14 +509,14 @@ function downloadPage(page) {
 }
 
 async function copyIframeCode(page, event) {
-  if (!page.github_url) {
+  const fullUrl = buildGitHubUrl(page.github_url);
+  if (!fullUrl) {
     alert('GitHub URL not available for this page');
     return;
   }
   
-  // 生成 iframe 代码
   const iframeCode = `<iframe 
-  src="${page.github_url}" 
+  src="${fullUrl}" 
   width="100%" 
   height="600" 
   frameborder="0" 
@@ -508,10 +525,8 @@ async function copyIframeCode(page, event) {
 </iframe>`;
   
   try {
-    // 复制到剪贴板
     await navigator.clipboard.writeText(iframeCode);
     
-    // 显示成功提示
     const button = event.target;
     const originalText = button.textContent;
     button.textContent = '✓';
@@ -529,8 +544,6 @@ async function copyIframeCode(page, event) {
     console.log('Iframe code copied:', iframeCode);
   } catch (error) {
     console.error('Failed to copy iframe code:', error);
-    
-    // 降级方案：显示对话框
     prompt('Copy this iframe code:', iframeCode);
   }
 }
@@ -610,10 +623,8 @@ function closePageDialog() {
 
 function selectGroup(groupId) {
   if (filterGroupId.value === groupId) {
-    // 如果点击的是当前选中的 group，则取消过滤
     filterGroupId.value = null;
   } else {
-    // 否则，选择这个 group
     filterGroupId.value = groupId;
   }
   loadPages();
@@ -642,6 +653,51 @@ function clearGroupFilter() {
 function getGroupName(groupId) {
   const group = groups.value.find(g => g.id === groupId);
   return group ? group.name : '';
+}
+
+// GitHub Pull All function
+const handlePullAllFromGitHub = async () => {
+  // Check if GitHub is configured
+  if (!githubConnected.value) {
+    alert('⚠️ GitHub Pages is not configured!\n\nPlease configure GitHub Pages settings first.')
+    return
+  }
+
+  try {
+    // Pull all files from GitHub
+    const pullResponse = await fetch(`${API_BASE_URL}/github/pull-all`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    
+    if (!pullResponse.ok) {
+      const error = await pullResponse.json()
+      throw new Error(error.error)
+    }
+    
+    const pullData = await pullResponse.json()
+    
+    if (!pullData.success) {
+      alert(`❌ Pull failed: ${pullData.message}`)
+      return
+    }
+    
+    if (pullData.files.length === 0) {
+      alert('📭 No HTML files found in GitHub repository.')
+      return
+    }
+    
+    // Show success message
+    const fileList = pullData.fileTitles.join(', ')
+    alert(`✅ Successfully pulled ${pullData.files.length} files from GitHub!\n\n📄 Files: ${fileList}\n\nAll content has been loaded into the editor.`)
+    
+    // Refresh the pages list to show any new content
+    await loadPages()
+    
+  } catch (error) {
+    console.error('Pull all from GitHub error:', error)
+    alert(`❌ Pull failed: ${error.message}`)
+  }
 }
 
 function closeManager() {
@@ -781,6 +837,23 @@ onMounted(() => {
 
 .btn-secondary:hover {
   background: #d1d5db;
+}
+
+.btn-pull {
+  background: #d4e8f1;
+  border: 1px solid #b8d0e8;
+  color: #1e3a5e;
+}
+
+.btn-pull:hover:not(:disabled) {
+  background: #c0d8e8;
+}
+
+.btn-pull:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+  border-color: #e5e7eb;
 }
 
 .groups-section {

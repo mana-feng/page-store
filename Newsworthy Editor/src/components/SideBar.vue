@@ -5,11 +5,124 @@
     <div class="btns">
       <button class="btn" @click="$emit('add-section')">+ Add New Section</button>
       <button class="btn" @click="store.addTextBlock" :disabled="!store.currSection">+ Add Text Block</button>
-      <button class="btn" @click="$emit('add-img')" :disabled="!store.currSection">+ Add Img Block</button>
+      <button class="btn" @click="handleAddImage" :disabled="!store.currSection">+ Add Img Block</button>
+      <button class="btn" @click="handleAddVideo" :disabled="!store.currSection">+ Add Video Block</button>
       <button class="btn" @click="$emit('add-parallax')">+ Add Parallax</button>
       <button class="btn btn-github" @click="handleSaveToGitHub">🚀 Save to GitHub Pages</button>
       <button class="btn btn-storage" @click="$emit('open-storage')">📚 Storage Manager</button>
       <button class="btn btn-settings" @click="$emit('open-settings')">⚙️ Settings</button>
+    </div>
+
+    <!-- Video URL Modal -->
+    <div v-if="showVideoModal" class="modal-overlay" @click.self="closeVideoModal">
+      <div class="modal-container">
+        <div class="modal-header">
+          <h3>🎬 Add YouTube Video</h3>
+          <button class="modal-close" @click="closeVideoModal">×</button>
+        </div>
+        <div class="modal-body">
+          <label class="modal-label">YouTube Video URL</label>
+          <input 
+            type="text" 
+            v-model="videoUrl" 
+            class="modal-input"
+            placeholder="https://www.youtube.com/watch?v=..."
+            @keyup.enter="confirmAddVideo"
+            ref="videoUrlInput"
+          />
+          <div class="modal-hint">
+            <p>Supported formats:</p>
+            <ul>
+              <li>🎥 Standard: https://www.youtube.com/watch?v=VIDEO_ID</li>
+              <li>🔗 Short link: https://youtu.be/VIDEO_ID</li>
+              <li>📱 Shorts: https://www.youtube.com/shorts/VIDEO_ID</li>
+              <li>🔴 Live: https://www.youtube.com/live/VIDEO_ID</li>
+              <li>📦 Embed: https://www.youtube.com/embed/VIDEO_ID</li>
+            </ul>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="modal-btn modal-btn-cancel" @click="closeVideoModal">Cancel</button>
+          <button class="modal-btn modal-btn-confirm" @click="confirmAddVideo">Add Video</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image URL Modal -->
+    <div v-if="showImageModal" class="modal-overlay" @click.self="closeImageModal">
+      <div class="modal-container">
+        <div class="modal-header">
+          <h3>🖼️ Add Image</h3>
+          <button class="modal-close" @click="closeImageModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="image-source-tabs">
+            <button 
+              class="tab-btn" 
+              :class="{ active: imageSourceTab === 'url' }"
+              @click="imageSourceTab = 'url'"
+            >
+              🔗 URL
+            </button>
+            <button 
+              class="tab-btn" 
+              :class="{ active: imageSourceTab === 'upload' }"
+              @click="imageSourceTab = 'upload'"
+            >
+              📤 Upload
+            </button>
+          </div>
+
+          <!-- URL Input Tab -->
+          <div v-if="imageSourceTab === 'url'" class="tab-content">
+            <label class="modal-label">Image URL</label>
+            <input 
+              type="text" 
+              v-model="imageUrl" 
+              class="modal-input"
+              placeholder="https://example.com/image.jpg"
+              @keyup.enter="confirmAddImage"
+              ref="imageUrlInput"
+            />
+            <div class="modal-hint">
+              <p>Enter a direct link to an image:</p>
+              <ul>
+                <li>https://example.com/photo.jpg</li>
+                <li>https://example.com/image.png</li>
+                <li>Supported: JPG, PNG, GIF, WebP, SVG</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- File Upload Tab -->
+          <div v-if="imageSourceTab === 'upload'" class="tab-content">
+            <label class="modal-label">Choose Image File</label>
+            <div class="upload-area" @click="triggerFileInput">
+              <div v-if="!selectedImageFile" class="upload-placeholder">
+                <div class="upload-icon">📁</div>
+                <p class="upload-text">Click to select an image</p>
+                <p class="upload-subtext">or drag and drop here</p>
+              </div>
+              <div v-else class="upload-preview">
+                <img :src="imagePreviewUrl" alt="Preview" class="preview-image" />
+                <p class="file-name">{{ selectedImageFile.name }}</p>
+                <button class="change-file-btn" @click.stop="triggerFileInput">Change File</button>
+              </div>
+            </div>
+            <input 
+              type="file" 
+              ref="imageFileInput" 
+              accept="image/*"
+              style="display: none"
+              @change="handleFileSelect"
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="modal-btn modal-btn-cancel" @click="closeImageModal">Cancel</button>
+          <button class="modal-btn modal-btn-confirm" @click="confirmAddImage">Add Image</button>
+        </div>
+      </div>
     </div>
 
     <div class="details">
@@ -155,17 +268,91 @@
           <button class="btn btn-danger" @click="store.deleteSelected">Delete Image</button>
         </div>
       </div>
+
+      <!-- get video block editing tools -->
+      <div v-else-if="store.selected.type === 'video'" class="mt-4 rounded bg-white/70 p-3">
+        <div class="panel-header">Video Settings</div>
+
+        <div class="setting-item">
+          <label>YouTube URL</label>
+          <input type="text" :value="store.currBlock?.url || ''"
+            @input="store.setVideoUrl($event.target.value)"
+            placeholder="https://www.youtube.com/watch?v=..." />
+          <small style="display: block; margin-top: 4px; color: #666;">
+            Supports: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID
+          </small>
+        </div>
+
+        <div class="setting-item">
+          <label>Width (px)</label>
+          <input type="number" min="200" :value="store.currBlock?.width || 560"
+            @input="store.setVideoWidth($event.target.value)" />
+        </div>
+
+        <div class="setting-item">
+          <label>Height (px)</label>
+          <input type="number" min="150" :value="store.currBlock?.height || 315"
+            @input="store.setVideoHeight($event.target.value)" />
+        </div>
+
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" :checked="store.currBlock?.keepRatio"
+              @change="store.setVideoKeepRatio($event.target.checked)" />
+            Keep Aspect Ratio (16:9)
+          </label>
+        </div>
+
+        <div class="flex gap-2">
+          <button class="btn btn-danger" @click="store.deleteSelected">Delete Video</button>
+        </div>
+      </div>
     </div>
   </aside>
 </template>
 
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, nextTick } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 
 const store = useEditorStore()
 const curr = computed(() => store.currSection)
+
+// GitHub configuration
+const githubOwner = ref('')
+const githubRepo = ref('')
+
+// Helper function to build full GitHub URL from relative path
+function buildGitHubUrl(relativePath) {
+  if (!relativePath || !githubOwner.value || !githubRepo.value) {
+    return null;
+  }
+  // If it's already a full URL, return as is
+  if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+    return relativePath;
+  }
+  // Build full URL from relative path
+  return `https://${githubOwner.value}.github.io/${githubRepo.value}/${relativePath}`;
+}
+
+// Fetch GitHub configuration on mount
+async function fetchGitHubConfig() {
+  try {
+    const response = await fetch('http://localhost:3001/api/github/status');
+    const data = await response.json();
+    if (data.configured) {
+      githubOwner.value = data.owner || '';
+      githubRepo.value = data.repo || '';
+    }
+  } catch (error) {
+    console.error('Failed to fetch GitHub config:', error);
+  }
+}
+
+onMounted(() => {
+  fetchGitHubConfig();
+})
 
 function setHeading(level) {
   store.activeEditor?.chain().focus().setHeading({ level }).run()
@@ -277,6 +464,124 @@ const clearImage = () => {
   store.setSecType('color')
 }
 
+// Handle adding video block
+// Video modal state
+const showVideoModal = ref(false)
+const videoUrl = ref('')
+const videoUrlInput = ref(null)
+
+const handleAddVideo = () => {
+  showVideoModal.value = true
+  videoUrl.value = ''
+  // Focus input after modal opens
+  nextTick(() => {
+    videoUrlInput.value?.focus()
+  })
+}
+
+const closeVideoModal = () => {
+  showVideoModal.value = false
+  videoUrl.value = ''
+}
+
+const confirmAddVideo = () => {
+  console.log('🎬 confirmAddVideo called, videoUrl:', videoUrl.value);
+  
+  if (!videoUrl.value.trim()) {
+    alert('⚠️ Please enter a YouTube URL')
+    return
+  }
+  
+  console.log('🎬 Calling store.addVideoBlock with:', videoUrl.value.trim());
+  store.addVideoBlock(videoUrl.value.trim())
+  console.log('🎬 Closing video modal');
+  closeVideoModal()
+}
+
+// Handle adding image block
+// Image modal state
+const showImageModal = ref(false)
+const imageSourceTab = ref('url') // 'url' or 'upload'
+const imageUrl = ref('')
+const imageUrlInput = ref(null)
+const imageFileInput = ref(null)
+const selectedImageFile = ref(null)
+const imagePreviewUrl = ref('')
+
+const handleAddImage = () => {
+  showImageModal.value = true
+  imageSourceTab.value = 'url'
+  imageUrl.value = ''
+  selectedImageFile.value = null
+  imagePreviewUrl.value = ''
+  // Focus input after modal opens
+  nextTick(() => {
+    if (imageSourceTab.value === 'url') {
+      imageUrlInput.value?.focus()
+    }
+  })
+}
+
+const closeImageModal = () => {
+  showImageModal.value = false
+  imageUrl.value = ''
+  selectedImageFile.value = null
+  if (imagePreviewUrl.value && imagePreviewUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(imagePreviewUrl.value)
+  }
+  imagePreviewUrl.value = ''
+}
+
+const triggerFileInput = () => {
+  imageFileInput.value?.click()
+}
+
+const handleFileSelect = (e) => {
+  const file = e.target.files?.[0]
+  if (!file) return
+  
+  // Clean up previous preview URL
+  if (imagePreviewUrl.value && imagePreviewUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(imagePreviewUrl.value)
+  }
+  
+  selectedImageFile.value = file
+  imagePreviewUrl.value = URL.createObjectURL(file)
+}
+
+const confirmAddImage = () => {
+  let imageSrc = ''
+  
+  if (imageSourceTab.value === 'url') {
+    const url = imageUrl.value.trim()
+    if (!url) {
+      alert('⚠️ Please enter a valid image URL!')
+      return
+    }
+    
+    // Basic URL validation
+    try {
+      new URL(url)
+      imageSrc = url
+    } catch (error) {
+      alert('⚠️ Please enter a valid URL!')
+      return
+    }
+  } else if (imageSourceTab.value === 'upload') {
+    if (!selectedImageFile.value) {
+      alert('⚠️ Please select an image file!')
+      return
+    }
+    
+    imageSrc = imagePreviewUrl.value
+  }
+  
+  if (imageSrc) {
+    store.addImageBlock(imageSrc)
+    closeImageModal()
+  }
+}
+
 const handleSaveToGitHub = async () => {
   if (store.sections.length === 0) {
     alert('⚠️ Please add content before saving!')
@@ -327,9 +632,14 @@ const handleSaveToGitHub = async () => {
     if (response.ok) {
       const data = await response.json()
       if (data.github_url) {
-        alert(`✅ Successfully saved to GitHub Pages!\n\n🌐 URL: ${data.github_url}\n\n📋 The URL has been copied to your clipboard.`)
-        // Copy URL to clipboard
-        navigator.clipboard.writeText(data.github_url).catch(() => {})
+        const fullUrl = buildGitHubUrl(data.github_url);
+        if (fullUrl) {
+          alert(`✅ Successfully saved to GitHub Pages!\n\n🌐 URL: ${fullUrl}\n\n📋 The URL has been copied to your clipboard.`)
+          // Copy URL to clipboard
+          navigator.clipboard.writeText(fullUrl).catch(() => {})
+        } else {
+          alert('✅ Saved to database, but GitHub Pages URL is not available.')
+        }
       } else {
         alert('✅ Saved to database, but GitHub Pages URL is not available.')
       }
@@ -342,6 +652,30 @@ const handleSaveToGitHub = async () => {
     alert('❌ Save failed. Please ensure the backend server is running.')
   }
 }
+
+
+// Helper function to load HTML content into editor
+const loadHTMLIntoEditor = async (htmlContent) => {
+  try {
+    // This is a simplified version - you might need to implement proper HTML parsing
+    // For now, we'll create a basic section with the HTML content
+    store.addSection()
+    const currentSection = store.currSection
+    if (currentSection) {
+      // Add the HTML content as a text block
+      store.addTextBlock()
+      const textBlock = currentSection.blocks[currentSection.blocks.length - 1]
+      if (textBlock && textBlock.editor) {
+        // Set the HTML content in the editor
+        textBlock.editor.commands.setContent(htmlContent)
+      }
+    }
+  } catch (error) {
+    console.error('Error loading HTML into editor:', error)
+    throw error
+  }
+}
+
 </script>
 
 <style scoped>
@@ -425,6 +759,8 @@ const handleSaveToGitHub = async () => {
 .btn-settings:hover {
   background-color: #d8d8d8;
 }
+
+
 
 /* Detail buttons */
 .details {
@@ -691,5 +1027,315 @@ const handleSaveToGitHub = async () => {
 
 .delete-btn.small:active {
   transform: scale(0.97);
+}
+
+/* Video Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-container {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow: hidden;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(to bottom, #f9fafb, #ffffff);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 28px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #111827;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.modal-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.modal-input::placeholder {
+  color: #9ca3af;
+}
+
+.modal-hint {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #f0f9ff;
+  border-left: 3px solid #3b82f6;
+  border-radius: 8px;
+}
+
+.modal-hint p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.modal-hint ul {
+  margin: 0;
+  padding-left: 20px;
+  list-style-type: disc;
+}
+
+.modal-hint li {
+  margin: 4px 0;
+  font-size: 12px;
+  color: #1e40af;
+  font-family: 'Courier New', monospace;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.modal-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-btn-cancel {
+  background: white;
+  border: 1px solid #d1d5db;
+  color: #374151;
+}
+
+.modal-btn-cancel:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.modal-btn-confirm {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
+}
+
+.modal-btn-confirm:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 6px 8px -1px rgba(59, 130, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+.modal-btn-confirm:active {
+  transform: translateY(0);
+}
+
+/* Image Modal Tab Styles */
+.image-source-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 4px;
+  background: #f3f4f6;
+  border-radius: 10px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+  background: white;
+  color: #3b82f6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.tab-btn:hover:not(.active) {
+  color: #374151;
+}
+
+.tab-content {
+  animation: fadeIn 0.2s ease;
+}
+
+/* Upload Area Styles */
+.upload-area {
+  margin-top: 12px;
+  padding: 32px;
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.upload-area:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-icon {
+  font-size: 48px;
+  opacity: 0.6;
+}
+
+.upload-text {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.upload-subtext {
+  margin: 0;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.upload-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.file-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  word-break: break-all;
+}
+
+.change-file-btn {
+  padding: 8px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.change-file-btn:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
 }
 </style>

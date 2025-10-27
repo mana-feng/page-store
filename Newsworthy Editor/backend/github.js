@@ -84,11 +84,9 @@ export async function uploadToGitHub(filename, content, customDate = null) {
       ...(sha && { sha })
     });
 
-    // Construct GitHub Pages URL with date path
-    const githubPagesUrl = `${baseUrl}/${path}`;
-    
+    // Return relative path instead of full URL
     return {
-      url: githubPagesUrl,
+      url: path,  // Store relative path (e.g., "2025/10/filename.html")
       commit: response.data.commit.sha,
       filename: path  // Return full path including date folders
     };
@@ -152,6 +150,7 @@ async function getFilesRecursively(octokit, owner, repo, branch, path = '') {
   const files = [];
   
   try {
+    console.log(`Checking path: ${path}`);
     const { data } = await octokit.rest.repos.getContent({
       owner,
       repo,
@@ -167,11 +166,15 @@ async function getFilesRecursively(octokit, owner, repo, branch, path = '') {
       return files;
     }
 
+    console.log(`Found ${data.length} items in ${path}`);
+
     // Process each item in directory
     for (const item of data) {
       if (item.type === 'file' && item.name.endsWith('.html')) {
+        console.log(`Found HTML file: ${item.path}`);
         files.push(item);
       } else if (item.type === 'dir') {
+        console.log(`Found directory: ${item.path}, recursing...`);
         // Recursively get files from subdirectory
         const subFiles = await getFilesRecursively(octokit, owner, repo, branch, item.path);
         files.push(...subFiles);
@@ -293,6 +296,248 @@ export async function testGitHubConfig(testConfig) {
       success: false, 
       error: error.message || 'Failed to connect to GitHub'
     };
+  }
+}
+
+/**
+ * Get content of a specific file from GitHub
+ * @param {string} filePath - Path to the file in the repository
+ * @returns {Promise<Object>} - File content and metadata
+ */
+export async function getFileFromGitHub(filePath) {
+  const octokit = getOctokit();
+  const config = getConfig();
+  
+  if (!octokit || !config) {
+    throw new Error('GitHub is not configured. Please configure GitHub settings first.');
+  }
+
+  const { owner, repo, branch, baseUrl } = config;
+
+  try {
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: filePath,
+      ref: branch
+    });
+
+    // Decode base64 content
+    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+    
+    return {
+      content,
+      path: data.path,
+      name: data.name,
+      size: data.size,
+      sha: data.sha,
+      url: `${baseUrl}/${data.path}`
+    };
+  } catch (error) {
+    console.error('GitHub get file error:', error);
+    throw new Error(`Failed to get file from GitHub: ${error.message}`);
+  }
+}
+
+/**
+ * Sync content with GitHub - compare local and remote versions
+ * @param {string} filePath - Path to the file in the repository
+ * @param {string} localContent - Local content to compare
+ * @returns {Promise<Object>} - Sync status and actions needed
+ */
+export async function syncWithGitHub(filePath, localContent) {
+  const octokit = getOctokit();
+  const config = getConfig();
+  
+  if (!octokit || !config) {
+    throw new Error('GitHub is not configured. Please configure GitHub settings first.');
+  }
+
+  const { owner, repo, branch } = config;
+
+  try {
+    // Get remote content
+    let remoteContent = null;
+    let remoteSha = null;
+    
+    try {
+      const { data } = await octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path: filePath,
+        ref: branch
+      });
+      remoteContent = Buffer.from(data.content, 'base64').toString('utf-8');
+      remoteSha = data.sha;
+    } catch (error) {
+      if (error.status === 404) {
+        // File doesn't exist remotely
+        remoteContent = null;
+      } else {
+        throw error;
+      }
+    }
+
+    // Compare content
+    const isLocalNewer = localContent !== remoteContent;
+    const isRemoteNewer = remoteContent && remoteContent !== localContent;
+    const needsSync = isLocalNewer || isRemoteNewer;
+
+    return {
+      needsSync,
+      isLocalNewer,
+      isRemoteNewer,
+      remoteContent,
+      remoteSha,
+      localContent,
+      actions: {
+        upload: isLocalNewer,
+        download: isRemoteNewer,
+        conflict: isLocalNewer && isRemoteNewer
+      }
+    };
+  } catch (error) {
+    console.error('GitHub sync error:', error);
+    throw new Error(`Failed to sync with GitHub: ${error.message}`);
+  }
+}
+
+/**
+ * Get all HTML files from GitHub with their content
+ * @returns {Promise<Array>} - Array of file objects with content
+ */
+export async function getAllFilesFromGitHub() {
+  const octokit = getOctokit();
+  const config = getConfig();
+  
+  if (!octokit || !config) {
+    throw new Error('GitHub is not configured. Please configure GitHub settings first.');
+  }
+
+  const { owner, repo, branch, baseUrl } = config;
+
+  try {
+    const files = await getFilesRecursively(octokit, owner, repo, branch, '');
+    
+    // Get content for each file
+    const filesWithContent = await Promise.all(
+      files.map(async (file) => {
+        try {
+          const { data } = await octokit.rest.repos.getContent({
+            owner,
+            repo,
+            path: file.path,
+            ref: branch
+          });
+          
+          const content = Buffer.from(data.content, 'base64').toString('utf-8');
+          
+          return {
+            name: file.name,
+            path: file.path,
+            url: file.path, // Store relative path instead of absolute URL
+            size: file.size,
+            sha: file.sha,
+            content
+          };
+        } catch (error) {
+          console.error(`Failed to get content for ${file.path}:`, error);
+          return {
+            name: file.name,
+            path: file.path,
+            url: file.path, // Store relative path instead of absolute URL
+            size: file.size,
+            sha: file.sha,
+            content: null,
+            error: error.message
+          };
+        }
+      })
+    );
+
+    return filesWithContent;
+  } catch (error) {
+    console.error('GitHub get all files error:', error);
+    throw new Error(`Failed to get all files from GitHub: ${error.message}`);
+  }
+}
+
+/**
+ * Pull all HTML files from GitHub and return them as a single combined content
+ * @returns {Promise<Object>} - Combined content and metadata
+ */
+export async function pullAllFromGitHub() {
+  try {
+    console.log('Starting pullAllFromGitHub...');
+    
+    // First check if GitHub is configured
+    const config = getConfig();
+    if (!config) {
+      throw new Error('GitHub is not configured');
+    }
+    
+    console.log('GitHub config found:', { owner: config.owner, repo: config.repo, branch: config.branch });
+    
+    const files = await getAllFilesFromGitHub();
+    console.log('Retrieved files from GitHub:', files.length);
+    
+    if (files.length === 0) {
+      return {
+        success: true,
+        message: 'No HTML files found in GitHub repository',
+        files: [],
+        combinedContent: ''
+      };
+    }
+
+    // Filter out files with errors
+    const validFiles = files.filter(file => file.content !== null);
+    console.log('Valid files after filtering:', validFiles.length);
+    
+    if (validFiles.length === 0) {
+      return {
+        success: false,
+        message: 'No valid HTML files could be loaded',
+        files: files,
+        combinedContent: ''
+      };
+    }
+
+    // Combine all HTML content
+    let combinedContent = '';
+    const fileTitles = [];
+    
+    validFiles.forEach((file, index) => {
+      // Use filename without extension as title (more reliable than HTML <title> tag)
+      const title = file.name.replace('.html', '');
+      fileTitles.push(title);
+      
+      // Add separator and content
+      if (index > 0) {
+        combinedContent += '\n\n<!-- ===== SEPARATOR ===== -->\n\n';
+      }
+      combinedContent += `<!-- File: ${file.name} (${file.path}) -->\n`;
+      combinedContent += file.content;
+    });
+
+    console.log('Successfully combined content, length:', combinedContent.length);
+
+    return {
+      success: true,
+      message: `Successfully pulled ${validFiles.length} HTML files`,
+      files: validFiles,
+      fileTitles: fileTitles,
+      combinedContent: combinedContent
+    };
+
+  } catch (error) {
+    console.error('GitHub pull all error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      status: error.status,
+      response: error.response?.data
+    });
+    throw new Error(`Failed to pull all files from GitHub: ${error.message}`);
   }
 }
 

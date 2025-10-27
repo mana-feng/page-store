@@ -7,9 +7,9 @@ export const useEditorStore = defineStore('editor', () => {
 
     // selected object
     const selected = ref({
-        type: null, // section/text/img
+        type: null, // section/text/img/video
         sectionId: null,
-        blockId: null, // id of imgblock or text block
+        blockId: null, // id of imgblock, text block, or video block
     })
 
     // current selected TipTap editor
@@ -89,6 +89,91 @@ export const useEditorStore = defineStore('editor', () => {
         img.src = src;
     };
 
+    // Helper function to extract YouTube video ID from various URL formats
+    const extractYouTubeId = (url) => {
+        if (!url) return null;
+        
+        // Remove whitespace
+        url = url.trim();
+        
+        // Pattern 1: https://www.youtube.com/watch?v=VIDEO_ID (standard video)
+        let match = url.match(/[?&]v=([^&]+)/);
+        if (match) return match[1];
+        
+        // Pattern 2: https://youtu.be/VIDEO_ID (short link)
+        match = url.match(/youtu\.be\/([^?&]+)/);
+        if (match) return match[1];
+        
+        // Pattern 3: https://www.youtube.com/embed/VIDEO_ID (embed)
+        match = url.match(/youtube\.com\/embed\/([^?&]+)/);
+        if (match) return match[1];
+        
+        // Pattern 4: https://www.youtube.com/v/VIDEO_ID (old format)
+        match = url.match(/youtube\.com\/v\/([^?&]+)/);
+        if (match) return match[1];
+        
+        // Pattern 5: https://www.youtube.com/shorts/VIDEO_ID (YouTube Shorts)
+        match = url.match(/youtube\.com\/shorts\/([^?&]+)/);
+        if (match) return match[1];
+        
+        // Pattern 6: https://www.youtube.com/live/VIDEO_ID (live streams)
+        match = url.match(/youtube\.com\/live\/([^?&]+)/);
+        if (match) return match[1];
+        
+        // Pattern 7: https://m.youtube.com/... (mobile links)
+        match = url.match(/m\.youtube\.com\/watch\?v=([^&]+)/);
+        if (match) return match[1];
+        
+        // If it's just the video ID (11 characters)
+        if (/^[a-zA-Z0-9_-]{11}$/.test(url)) {
+            return url;
+        }
+        
+        return null;
+    };
+
+    // Add a video block
+    const addVideoBlock = (url) => {
+        console.log('🎬 addVideoBlock called with URL:', url);
+        
+        const sec = currSection.value;
+        console.log('📋 Current section:', sec);
+        
+        if (!sec) {
+            alert('⚠️ Please select a section first!');
+            return;
+        }
+
+        // Extract YouTube video ID
+        const videoId = extractYouTubeId(url);
+        console.log('🆔 Extracted video ID:', videoId);
+        
+        if (!videoId) {
+            alert('❌ Invalid YouTube URL. Please enter a valid YouTube video link.');
+            return;
+        }
+
+        // Default 16:9 aspect ratio for videos
+        const defaultWidth = 560;
+        const defaultHeight = 315;
+
+        const newBlock = {
+            id: Date.now(),
+            type: 'video',
+            url: url,
+            videoId: videoId,
+            width: defaultWidth,
+            height: defaultHeight,
+            aspectRatio: 16 / 9,
+            keepRatio: true,
+        };
+
+        console.log('✅ Adding video block:', newBlock);
+        sec.blocks.push(newBlock);
+        selected.value = { type: 'video', sectionId: sec.id, blockId: newBlock.id };
+        console.log('✅ Video block added successfully');
+    };
+
     // change img
     const setImgKeepRatio = (v) => {
         const blk = currBlock.value;
@@ -118,6 +203,51 @@ export const useEditorStore = defineStore('editor', () => {
         } else {
             blk.height = height;
         }
+    };
+
+    // Video block controls
+    const setVideoUrl = (url) => {
+        const blk = currBlock.value;
+        if (!blk || blk.type !== 'video') return;
+        
+        const videoId = extractYouTubeId(url);
+        if (!videoId) {
+            alert('❌ Invalid YouTube URL');
+            return;
+        }
+        
+        blk.url = url;
+        blk.videoId = videoId;
+    };
+
+    const setVideoWidth = (w) => {
+        const blk = currBlock.value;
+        if (!blk || blk.type !== 'video') return;
+        const width = Math.max(1, parseInt(w || 0, 10));
+        if (blk.keepRatio && blk.aspectRatio) {
+            blk.width = width;
+            blk.height = Math.round(width / blk.aspectRatio);
+        } else {
+            blk.width = width;
+        }
+    };
+
+    const setVideoHeight = (h) => {
+        const blk = currBlock.value;
+        if (!blk || blk.type !== 'video') return;
+        const height = Math.max(1, parseInt(h || 0, 10));
+        if (blk.keepRatio && blk.aspectRatio) {
+            blk.height = height;
+            blk.width = Math.round(height * blk.aspectRatio);
+        } else {
+            blk.height = height;
+        }
+    };
+
+    const setVideoKeepRatio = (v) => {
+        const blk = currBlock.value;
+        if (!blk || blk.type !== 'video') return;
+        blk.keepRatio = !!v;
     };
 
     // when user click section
@@ -219,7 +349,6 @@ export const useEditorStore = defineStore('editor', () => {
                 blockId: null
             }
         } else {
-            // delete block（text/img）
             const sec = currSection.value
             if (!sec) return
             
@@ -230,7 +359,6 @@ export const useEditorStore = defineStore('editor', () => {
             }
             
             sec.blocks = sec.blocks.filter(b => b.id !== selected.value.blockId)
-            // delete then go back section
             selected.value = { type: 'section', sectionId: sec.id, blockId: null }
         }
     }
@@ -259,7 +387,6 @@ export const useEditorStore = defineStore('editor', () => {
         }
     };
 
-    // 导出HTML功能
     const exportToHTML = async () => {
         // Convert all blob URLs to base64 before export
         const sectionsClone = JSON.parse(JSON.stringify(sections.value));
@@ -276,12 +403,13 @@ export const useEditorStore = defineStore('editor', () => {
                     if (block.type === 'image' && block.src && block.src.startsWith('blob:')) {
                         block.src = await blobUrlToBase64(block.src);
                     }
+                    // Video blocks don't need conversion as they use YouTube embed URLs
                 }
             }
         }
         
         let htmlContent = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -370,6 +498,17 @@ export const useEditorStore = defineStore('editor', () => {
             height: auto;
             border-radius: 4px;
         }
+        .video-block {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .video-block iframe {
+            max-width: 100%;
+            border: none;
+            border-radius: 4px;
+        }
         .text-align-left {
             text-align: left;
         }
@@ -382,7 +521,6 @@ export const useEditorStore = defineStore('editor', () => {
     <div class="article-container">
 `;
 
-        // 遍历所有sections (use cloned sections with converted blob URLs)
         sectionsClone.forEach(section => {
             const sectionProps = section.props || {};
             const width = sectionProps.width || 1200;
@@ -401,7 +539,6 @@ export const useEditorStore = defineStore('editor', () => {
 
             htmlContent += `        <section class="section" style="${sectionStyle}">\n`;
 
-            // 遍历section中的所有blocks
             section.blocks.forEach(block => {
                 if (block.type === 'text') {
                     const blockWidth = block.props?.width || '65ch';
@@ -415,6 +552,13 @@ export const useEditorStore = defineStore('editor', () => {
                     htmlContent += `            <figure class="image-block">\n`;
                     htmlContent += `                <img src="${block.src}" style="width: ${imgWidth}px; height: ${imgHeight}px; object-fit: ${objectFit}; object-position: center;" alt="Image" />\n`;
                     htmlContent += `            </figure>\n`;
+                } else if (block.type === 'video') {
+                    const videoWidth = block.width || 560;
+                    const videoHeight = block.height || 315;
+                    const videoId = block.videoId;
+                    htmlContent += `            <div class="video-block">\n`;
+                    htmlContent += `                <iframe width="${videoWidth}" height="${videoHeight}" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>\n`;
+                    htmlContent += `            </div>\n`;
                 }
             });
 
@@ -428,7 +572,6 @@ export const useEditorStore = defineStore('editor', () => {
         return htmlContent;
     };
 
-    // 下载HTML文件
     const downloadHTML = async () => {
         const htmlContent = await exportToHTML();
         const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
@@ -442,13 +585,11 @@ export const useEditorStore = defineStore('editor', () => {
         URL.revokeObjectURL(url);
     };
 
-    // 生成iframe嵌入代码
     const generateIframeCode = async () => {
         const htmlContent = await exportToHTML();
         const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         
-        // 生成iframe代码示例
         const iframeCode = `<iframe 
     src="${url}" 
     width="100%" 
@@ -461,7 +602,6 @@ export const useEditorStore = defineStore('editor', () => {
         return iframeCode;
     };
 
-    // 复制iframe代码到剪贴板
     const copyIframeCode = async () => {
         const iframeCode = await generateIframeCode();
         try {
@@ -473,18 +613,28 @@ export const useEditorStore = defineStore('editor', () => {
         }
     };
 
-    // generateHTML 是 exportToHTML 的别名，用于后端API集成
     const generateHTML = exportToHTML;
 
+    // Clear all sections
+    const clearAllSections = () => {
+        // Revoke all blob URLs before clearing
+        revokeAllBlobs();
+        sections.value = [];
+        selected.value = { type: null, sectionId: null, blockId: null };
+        activeEditor.value = null;
+    };
+
     return {
-        sections, addSection, addTextBlock, addImageBlock,
+        sections, addSection, addTextBlock, addImageBlock, addVideoBlock,
         selected, selectSection, selectBlock, notSelected,
         currSection, currBlock,
         setSecBg, setSecHeight, deleteSelected,
         activeEditor, setActiveEditor,
         setSecType, revokeAllBlobs, setSecBgImg,
         setImgWidth, setImgHeight, setImgKeepRatio,
+        setVideoUrl, setVideoWidth, setVideoHeight, setVideoKeepRatio,
         exportToHTML, downloadHTML, generateIframeCode, copyIframeCode, generateHTML,
+        clearAllSections,
     }
 
 })
