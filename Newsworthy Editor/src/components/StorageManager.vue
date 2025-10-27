@@ -137,7 +137,7 @@
             <div class="page-actions">
               <button @click="openPage(page)" class="icon-btn" title="Open">🔗</button>
               <button @click="copyIframeCode(page, $event)" class="icon-btn" title="Copy Iframe Code">📋</button>
-              <button @click="editPageDialog(page)" class="icon-btn" title="Edit">✏️</button>
+              <button @click="editPage(page)" class="icon-btn" title="Edit Content">✏️</button>
               <button @click="downloadPage(page)" class="icon-btn" title="Download">💾</button>
               <button @click="deletePage(page.id)" class="icon-btn delete" title="Delete">🗑️</button>
             </div>
@@ -169,7 +169,7 @@
             <div class="page-actions">
               <button @click="openPage(page)" class="icon-btn" title="Open">🔗</button>
               <button @click="copyIframeCode(page, $event)" class="icon-btn" title="Copy Iframe Code">📋</button>
-              <button @click="editPageDialog(page)" class="icon-btn" title="Edit">✏️</button>
+              <button @click="editPage(page)" class="icon-btn" title="Edit Content">✏️</button>
               <button @click="downloadPage(page)" class="icon-btn" title="Download">💾</button>
               <button @click="deletePage(page.id)" class="icon-btn delete" title="Delete">🗑️</button>
             </div>
@@ -282,8 +282,10 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useEditorStore } from '../stores/editorStore';
 
 const API_BASE_URL = 'http://localhost:3001/api';
+const editorStore = useEditorStore();
 
 // State
 const githubConnected = ref(false);
@@ -291,6 +293,7 @@ const githubOwner = ref('');
 const githubRepo = ref('');
 const groups = ref([]);
 const pages = ref([]);
+const allPagesCount = ref(0); // Total count of all pages (unfiltered)
 const searchQuery = ref('');
 const filterGroupId = ref(null);
 const viewMode = ref('grid');
@@ -322,8 +325,8 @@ const selectedGroup = computed(() => {
 });
 
 const totalPagesCount = computed(() => {
-  // Sum up page_count from all groups
-  return groups.value.reduce((total, group) => total + (group.page_count || 0), 0);
+  // Return the total count of all pages (including ungrouped pages)
+  return allPagesCount.value;
 });
 
 // Methods
@@ -361,6 +364,17 @@ async function loadGroups() {
   }
 }
 
+async function loadAllPagesCount() {
+  try {
+    // Load total count of all pages without filters
+    const response = await fetch(`${API_BASE_URL}/pages`);
+    const allPages = await response.json();
+    allPagesCount.value = allPages.length;
+  } catch (error) {
+    console.error('Failed to load all pages count:', error);
+  }
+}
+
 async function loadPages() {
   try {
     let url = `${API_BASE_URL}/pages`;
@@ -379,6 +393,9 @@ async function loadPages() {
     
     const response = await fetch(url);
     pages.value = await response.json();
+    
+    // Always update the total count to reflect current state
+    await loadAllPagesCount();
   } catch (error) {
     console.error('Failed to load pages:', error);
   }
@@ -442,14 +459,41 @@ async function deleteGroup(id) {
   }
 }
 
-function editPageDialog(page) {
-  editingPage.value = page;
-  pageForm.value = {
-    title: page.title,
-    filename: page.filename,
-    group_id: page.group_id
-  };
-  showPageDialog.value = true;
+// Edit page - load to editor if has sections_data, otherwise show metadata edit dialog
+async function editPage(page) {
+  // If page has sections data, load it into the editor
+  if (page.sections_data) {
+    try {
+      // Confirm before loading (will clear current editor content)
+      if (editorStore.sections.length > 0) {
+        if (!confirm('⚠️ Loading this page will replace your current editor content.\n\nDo you want to continue?')) {
+          return;
+        }
+      }
+      
+      // Load sections data into editor
+      editorStore.loadSections(page.sections_data);
+      
+      // Close storage manager
+      closeManager();
+      
+      // Show success message
+      alert(`✅ Page "${page.title}" loaded into editor!\n\nYou can now edit and republish it.`);
+      
+    } catch (error) {
+      console.error('Failed to load page to editor:', error);
+      alert('❌ Failed to load page into editor');
+    }
+  } else {
+    // No sections data - show metadata edit dialog
+    editingPage.value = page;
+    pageForm.value = {
+      title: page.title,
+      filename: page.filename,
+      group_id: page.group_id
+    };
+    showPageDialog.value = true;
+  }
 }
 
 async function savePage() {
@@ -703,6 +747,7 @@ const handlePullAllFromGitHub = async () => {
 function closeManager() {
   emit('close');
 }
+
 
 onMounted(() => {
   checkGitHubStatus();

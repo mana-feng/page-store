@@ -35,12 +35,27 @@ function initDatabase() {
       group_id INTEGER,
       sort_order INTEGER DEFAULT 0,
       html_content TEXT NOT NULL,
+      sections_data TEXT,
       preview_image TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL
     )
   `);
+
+  // Migrate existing tables - add sections_data column if it doesn't exist
+  try {
+    const columns = db.pragma('table_info(pages)');
+    const hasSectionsData = columns.some(col => col.name === 'sections_data');
+    
+    if (!hasSectionsData) {
+      console.log('📝 Migrating database: Adding sections_data column...');
+      db.exec('ALTER TABLE pages ADD COLUMN sections_data TEXT');
+      console.log('✅ Migration complete: sections_data column added');
+    }
+  } catch (error) {
+    console.log('ℹ️  Database migration check:', error.message);
+  }
 
   // Create index for better query performance
   db.exec(`
@@ -87,8 +102,8 @@ export const groupOperations = {
 // Page operations
 export const pageOperations = {
   create: db.prepare(`
-    INSERT INTO pages (title, filename, github_url, group_id, sort_order, html_content, preview_image)
-    VALUES (@title, @filename, @github_url, @group_id, @sort_order, @html_content, @preview_image)
+    INSERT INTO pages (title, filename, github_url, group_id, sort_order, html_content, sections_data, preview_image)
+    VALUES (@title, @filename, @github_url, @group_id, @sort_order, @html_content, @sections_data, @preview_image)
   `),
   
   getAll: db.prepare(`
@@ -115,7 +130,7 @@ export const pageOperations = {
     UPDATE pages
     SET title = @title, filename = @filename, github_url = @github_url, 
         group_id = @group_id, sort_order = @sort_order, 
-        html_content = @html_content, preview_image = @preview_image,
+        html_content = @html_content, sections_data = @sections_data, preview_image = @preview_image,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = @id
   `),

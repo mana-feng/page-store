@@ -244,7 +244,7 @@ app.get('/api/pages/:id', (req, res) => {
 // Create page and upload to GitHub
 app.post('/api/pages', async (req, res) => {
   try {
-    const { title, filename, html_content, group_id, preview_image } = req.body;
+    const { title, filename, html_content, sections_data, group_id, preview_image } = req.body;
     
     if (!title || !filename || !html_content) {
       return res.status(400).json({ 
@@ -276,6 +276,7 @@ app.post('/api/pages', async (req, res) => {
       group_id: group_id || null,
       sort_order: maxSortOrder + 1,
       html_content,
+      sections_data: sections_data ? JSON.stringify(sections_data) : null,
       preview_image: preview_image || null
     });
 
@@ -291,7 +292,7 @@ app.post('/api/pages', async (req, res) => {
 app.put('/api/pages/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, filename, html_content, group_id, sort_order, preview_image } = req.body;
+    const { title, filename, html_content, sections_data, group_id, sort_order, preview_image } = req.body;
 
     const existingPage = pageOperations.getById.get(id);
     if (!existingPage) {
@@ -333,6 +334,7 @@ app.put('/api/pages/:id', async (req, res) => {
       group_id: group_id !== undefined ? group_id : existingPage.group_id,
       sort_order: sort_order !== undefined ? sort_order : existingPage.sort_order,
       html_content: html_content || existingPage.html_content,
+      sections_data: sections_data !== undefined ? (sections_data ? JSON.stringify(sections_data) : null) : existingPage.sections_data,
       preview_image: preview_image !== undefined ? preview_image : existingPage.preview_image
     });
 
@@ -374,10 +376,10 @@ app.delete('/api/pages/:id', async (req, res) => {
       return res.status(404).json({ error: 'Page not found' });
     }
 
-    // Delete from GitHub
-    if (page.filename) {
+    // Delete from GitHub - use github_url which contains the full path (e.g., "2025/10/filename.html")
+    if (page.github_url) {
       try {
-        await deleteFromGitHub(page.filename);
+        await deleteFromGitHub(page.github_url);
       } catch (error) {
         console.error('GitHub delete failed:', error);
         // Continue even if GitHub delete fails
@@ -463,6 +465,7 @@ app.post('/api/github/pull-all', async (req, res) => {
             group_id: null, // No group assigned for pulled files
             sort_order: 0,
             html_content: file.content,
+            sections_data: null,
             preview_image: null
           });
           console.log(`Updated existing page: ${file.name}`);
@@ -475,6 +478,7 @@ app.post('/api/github/pull-all', async (req, res) => {
             group_id: null, // No group assigned for pulled files
             sort_order: 0,
             html_content: file.content,
+            sections_data: null,
             preview_image: null
           });
           console.log(`Created new page: ${file.name} with ID: ${insertResult.lastInsertRowid}`);

@@ -624,6 +624,68 @@ export const useEditorStore = defineStore('editor', () => {
         activeEditor.value = null;
     };
 
+    // Load sections data from saved page
+    const loadSections = (sectionsData) => {
+        try {
+            console.log('🔄 Loading sections data...', sectionsData);
+            
+            // Clear existing content first
+            clearAllSections();
+            
+            // Parse and load sections data
+            if (typeof sectionsData === 'string') {
+                console.log('📝 Parsing JSON string...');
+                sectionsData = JSON.parse(sectionsData);
+            }
+            
+            if (Array.isArray(sectionsData)) {
+                console.log(`📦 Found ${sectionsData.length} sections to load`);
+                
+                // Deep clone the sections data to ensure reactivity
+                const clonedSections = JSON.parse(JSON.stringify(sectionsData));
+                
+                // Restore blob URLs for images and backgrounds
+                clonedSections.forEach((section, idx) => {
+                    console.log(`  Section ${idx + 1}:`, {
+                        id: section.id,
+                        blocks: section.blocks?.length || 0,
+                        bgType: section.props?.bgType
+                    });
+                    
+                    // Restore background blob URL if exists
+                    if (section.props && section.props.bgType === 'image' && section.props.bgImg) {
+                        // The bgImg should be a data URL or external URL, it will work as is
+                    }
+                    
+                    // Restore blocks
+                    if (section.blocks) {
+                        section.blocks.forEach((block, bidx) => {
+                            console.log(`    Block ${bidx + 1}:`, {
+                                type: block.type,
+                                hasHtml: block.type === 'text' && !!block.html,
+                                htmlLength: block.type === 'text' ? block.html?.length : 'N/A'
+                            });
+                            
+                            // Images should have their src intact
+                            if (block.type === 'image' && block.src) {
+                                // The src should be a data URL or external URL, it will work as is
+                            }
+                        });
+                    }
+                });
+                
+                sections.value = clonedSections;
+                console.log('✅ Loaded sections data:', sections.value.length, 'sections');
+                console.log('📊 Final sections state:', JSON.parse(JSON.stringify(sections.value)));
+            } else {
+                console.error('❌ Invalid sections data format:', typeof sectionsData);
+            }
+        } catch (error) {
+            console.error('❌ Failed to load sections:', error);
+            alert('Failed to load page content into editor');
+        }
+    };
+
     return {
         sections, addSection, addTextBlock, addImageBlock, addVideoBlock,
         selected, selectSection, selectBlock, notSelected,
@@ -634,7 +696,7 @@ export const useEditorStore = defineStore('editor', () => {
         setImgWidth, setImgHeight, setImgKeepRatio,
         setVideoUrl, setVideoWidth, setVideoHeight, setVideoKeepRatio,
         exportToHTML, downloadHTML, generateIframeCode, copyIframeCode, generateHTML,
-        clearAllSections,
+        clearAllSections, loadSections,
     }
 
 })

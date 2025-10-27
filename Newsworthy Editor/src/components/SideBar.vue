@@ -618,6 +618,9 @@ const handleSaveToGitHub = async () => {
   
   try {
     const htmlContent = await store.generateHTML()
+    // Save sections data for future editing
+    const sectionsData = JSON.parse(JSON.stringify(store.sections))
+    
     const response = await fetch('http://localhost:3001/api/pages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -625,6 +628,7 @@ const handleSaveToGitHub = async () => {
         title,
         filename,
         html_content: htmlContent,
+        sections_data: sectionsData,
         group_id: null
       })
     })
