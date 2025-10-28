@@ -327,9 +327,10 @@ capstone-project-25t3-9900-h18e-almond-functions/
 │   │   ├── server.js            # Express server
 │   │   ├── database.js          # SQLite operations
 │   │   ├── github.js            # GitHub API integration
+│   │   ├── config-store.js      # Settings storage
+│   │   ├── crypto-utils.js      # Token encryption
 │   │   └── database.sqlite      # Local data storage
-│   ├── public/                  # Static assets
-│   └── HOW_TO_VIEW_EXPORTED_HTML.md  # Video export guide
+│   └── public/                  # Static assets
 ├── start-servers.bat            # Windows startup script
 ├── start-servers.sh             # macOS/Linux startup script
 └── README.md                    # This file
@@ -375,7 +376,6 @@ A: Yes. Click the image button in the editor toolbar and select a local file or 
 A: The exported HTML includes smart video handling:
 - **Direct opening (double-click)**: Click video thumbnail → Opens YouTube in new tab
 - **Web server mode**: Click thumbnail → Plays embedded in page
-- **For details**: See `Newsworthy Editor/HOW_TO_VIEW_EXPORTED_HTML.md`
 
 **Q: What video formats are supported?**  
 A: Currently only YouTube videos. Supported URL formats:

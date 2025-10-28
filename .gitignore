@@ -1,1 +1,24 @@
-node_modules/.vue-global-types/vue_3.5_0.d.ts
+# Node modules
+node_modules/
+
+# Vue global types
+.vue-global-types/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+
+# Environment files
+.env.local
+
+# Build output
+dist/
+dist-ssr/
