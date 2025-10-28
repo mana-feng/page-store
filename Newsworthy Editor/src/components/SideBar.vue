@@ -5,7 +5,7 @@
     <div class="btns">
       <button class="btn" @click="$emit('add-section')">+ Add New Section</button>
       <button class="btn" @click="store.addTextBlock" :disabled="!store.currSection">+ Add Text Block</button>
-      <button class="btn" @click="handleAddImage" :disabled="!store.currSection">+ Add Img Block</button>
+      <button class="btn" @click="handleAddImage" :disabled="!store.currSection">+ Add Image Block</button>
       <button class="btn" @click="handleAddVideo" :disabled="!store.currSection">+ Add Video Block</button>
       <button class="btn" @click="$emit('add-parallax')">+ Add Parallax</button>
       <button class="btn btn-github" @click="handleSaveToGitHub">🚀 Save to GitHub Pages</button>
@@ -52,10 +52,44 @@
     <div v-if="showImageModal" class="modal-overlay" @click.self="closeImageModal">
       <div class="modal-container">
         <div class="modal-header">
-          <h3>🖼️ Add Image</h3>
+          <h3>🖼️ Add Image Block</h3>
           <button class="modal-close" @click="closeImageModal">×</button>
         </div>
         <div class="modal-body">
+          <!-- Image Type Selection -->
+          <div class="image-type-section">
+            <label class="modal-label">Image Type</label>
+            <div class="image-type-tabs">
+              <button 
+                class="type-tab-btn" 
+                :class="{ active: imageType === 'normal' }"
+                @click="imageType = 'normal'"
+              >
+                🖼️ Normal
+              </button>
+              <button 
+                class="type-tab-btn" 
+                :class="{ active: imageType === 'fullwidth' }"
+                @click="imageType = 'fullwidth'"
+              >
+                🌄 Full Width
+              </button>
+              <button 
+                class="type-tab-btn" 
+                :class="{ active: imageType === 'float' }"
+                @click="imageType = 'float'"
+              >
+                📝 Float & Text
+              </button>
+            </div>
+            <div class="type-description">
+              <p v-if="imageType === 'normal'">Standard image block with caption</p>
+              <p v-if="imageType === 'fullwidth'">Full-width image that spans the entire section</p>
+              <p v-if="imageType === 'float'">Image with text wrapping around it</p>
+            </div>
+          </div>
+
+          <!-- Image Source Selection -->
           <div class="image-source-tabs">
             <button 
               class="tab-btn" 
@@ -195,6 +229,51 @@
         </div>
 
         <div class="tool-card">
+          <div class="tool-title">Font & Size</div>
+          <div class="row">
+            <div class="field">
+              <select @change="setFontFamily($event.target.value || null)">
+                <option value="">Default</option>
+                <option value='"Times New Roman", Times, serif'>Times New Roman</option>
+                <option value='Georgia, "Times New Roman", Times, serif'>Georgia</option>
+                <option value='Calibri, "Segoe UI", Roboto, Arial, Helvetica, sans-serif'>Calibri</option>
+                <option value='Inter, Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif'>Inter</option>
+                <option value='Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif'>Roboto</option>
+                <option value='Arial, "Helvetica Neue", Helvetica, sans-serif'>Arial</option>
+                <option value='"Helvetica Neue", Helvetica, Arial, sans-serif'>Helvetica Neue</option>
+                <option value='"Courier New", Courier, monospace'>Courier New</option>
+                <option value='ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'>Serif</option>
+                <option
+                  value='ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"'>
+                  Sans-serif</option>
+                <option
+                  value='ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'>
+                  Monospace</option>
+              </select>
+            </div>
+            <div class="field">
+              <select @change="setFontSize($event.target.value || null)">
+                <option value="">Default</option>
+                <option value="8px">8</option>
+                <option value="9px">9</option>
+                <option value="10px">10</option>
+                <option value="11px">11</option>
+                <option value="12px">12</option>
+                <option value="14px">14</option>
+                <option value="16px">16</option>
+                <option value="18px">18</option>
+                <option value="20px">20</option>
+                <option value="24px">24</option>
+                <option value="28px">28</option>
+                <option value="32px">32</option>
+                <option value="36px">36</option>
+                <option value="48px">48</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="tool-card">
           <div class="tool-title">Text Align</div>
           <div class="seg">
             <button class="seg-btn" title="Left" aria-label="Left" :class="{ active: isActiveAlign('left') }"
@@ -220,6 +299,19 @@
               <em>I</em>
             </button>
           </div>
+          <div class="tool-title">Drop Cap</div>
+          <div class="seg">
+            <button class="seg-btn" title="Toggle Drop Cap" @click="toggleDropCap">
+              Drop
+            </button>
+          </div>
+        </div>
+
+        <div class="tool-card">
+          <div class="tool-title">Text Color</div>
+          <div class="seg" style="justify-content: center;">
+            <input type="color" v-model="textColor" @input="applyColor" class="color-picker" />
+          </div>
         </div>
 
         <div class="tool-card">
@@ -240,34 +332,229 @@
       </div>
 
       <!-- get image block editing tools -->
-      <div v-else-if="store.selected.type === 'image'" class="mt-4 rounded bg-white/70 p-3">
-        <div class="panel-header">Image Settings</div>
+      <ImageSettingsPanel
+        v-else-if="store.selected.type === 'image'"
+        :model="store.currImage"
+        title="Image Settings"
+        @updateWidth="store.setImgWidth"
+        @updateHeight="store.setImgHeight"
+        @updateKeepRatio="store.setImgKeepRatio"
+        @updateCaption="store.setImgCaption"
+        @updateCaptionPosition="store.setImgCaptionPosition"
+        @updateCaptionBubbleAnimated="store.setImgCaptionBubbleAnimated"
+        @replaceImage="replaceImage"
+        @deleteImage="store.deleteSelected"
+      />
 
-        <div class="setting-item">
-          <label>Width (px)</label>
-          <input type="number" min="50" :value="store.currBlock?.width || 300"
-            @input="store.setImgWidth($event.target.value)" />
+
+      <ImageSettingsPanel
+        v-else-if="store.selected.type === 'fullwidth-image'"
+        :model="{ image: store.currBlock?.image }"
+        title="Full-Width Image Settings"
+        @updateMode="store.setFullWidthImgMode"
+        @updateHeight="store.setFullWidthImgHeight"
+        @updateCaption="store.setFullWidthImgCaption"
+        @updateCaptionPosition="store.setFullWidthImgCaptionPosition"
+        @updateCaptionBubbleAnimated="store.setFullWidthImgCaptionBubbleAnimated"
+        @replaceImage="replaceImage"
+        @deleteImage="store.deleteSelected"
+      />
+
+      <template v-else-if="store.selected.type === 'float-image'">
+        <!-- Float Image (Image part) Settings -->
+        <div
+          v-if="store.selected.part === 'image'"
+          class="mt-4 rounded bg-white/70 p-3"
+        >
+          <div class="panel-header">Float Image Settings</div>
+
+          <div class="setting-item">
+            <label>Alignment</label>
+            <select
+              :value="store.currBlock?.image?.align || 'right'"
+              @change="e => store.setFloatImgAlign(e.target.value)"
+            >
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+
+          <div class="setting-item">
+            <label>Width: {{ store.currBlock?.image?.widthPercent ?? 45 }}%</label>
+            <input
+              type="range"
+              min="20" max="70" step="1"
+              :value="store.currBlock?.image?.widthPercent ?? 45"
+              @input="e => store.setFloatImgWidth(Number(e.target.value))"
+            />
+          </div>
+
+          <div class="setting-item">
+            <label>Caption</label>
+            <textarea
+              rows="2"
+              placeholder="Enter caption (optional)…"
+              :value="store.currBlock?.image?.caption || ''"
+              @input="e => store.setFloatImgCaption(e.target.value)"
+            />
+          </div>
+
+          <div class="setting-item">
+            <label>Caption Position</label>
+            <select
+              :value="store.currBlock?.image?.captionPosition || 'bottom'"
+              @change="e => store.setFloatImgCaptionPosition(e.target.value)"
+            >
+              <option value="bottom">Below Image</option>
+              <option value="right">Right of Image</option>
+              <option value="bubble">Bubble on Hover</option>
+            </select>
+          </div>
+
+          <div
+            class="setting-item"
+            v-if="store.currBlock?.image?.captionPosition === 'bubble'"
+          >
+            <label class="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                :checked="!!store.currBlock?.image?.captionBubbleAnimated"
+                @change="e => store.setFloatImgCaptionBubbleAnimated(e.target.checked)"
+              />
+              Animate bubble
+            </label>
+          </div>
+
+          <div class="flex gap-2">
+            <button class="btn" @click="replaceImage">Replace Image</button>
+            <button class="btn btn-danger" @click="store.deleteSelected">Delete</button>
+          </div>
         </div>
 
-        <div class="setting-item">
-          <label>Height (px)</label>
-          <input type="number" min="50" :value="store.currBlock?.height || 300"
-            @input="store.setImgHeight($event.target.value)" />
-        </div>
+        <!-- Float Image (Text part) Settings -->
+        <div
+          v-else-if="store.selected.part === 'text'"
+          class="mt-4 rounded bg-white/70 p-3"
+        >
+          <div class="panel-header">Float Image Text Setting</div>
+          <div class="tool-card">
+            <div class="tool-title">Text Style</div>
+            <div class="seg">
+              <button class="seg-btn" title="Title" aria-label="Title"
+                :class="{ active: store.activeEditor?.isActive('heading', { level: 1 }) }"
+                @click="setHeading(1)">
+                T
+              </button>
+              <button class="seg-btn" title="Subtitle" aria-label="Subtitle"
+                :class="{ active: store.activeEditor?.isActive('heading', { level: 2 }) }"
+                @click="setHeading(2)">
+                S
+              </button>
+              <button class="seg-btn" title="Body" aria-label="Body"
+                :class="{
+                  active:
+                    !store.activeEditor?.isActive('heading', { level: 1 }) &&
+                    !store.activeEditor?.isActive('heading', { level: 2 })
+                }"
+                @click="setParagraph">
+                B
+              </button>
+            </div>
+          </div>
 
-        <div class="setting-item">
-          <label>
-            <input type="checkbox" :checked="store.currBlock?.keepRatio"
-              @change="store.setImgKeepRatio($event.target.checked)" />
-            Keep Aspect Ratio
-          </label>
-        </div>
+          <div class="tool-card">
+            <div class="tool-title">Font & Size</div>
+            <div class="row">
+              <div class="field">
+                <select @change="setFontFamily($event.target.value || null)">
+                  <option value="">Default</option>
+                  <option value='"Times New Roman", Times, serif'>Times New Roman</option>
+                  <option value='Georgia, "Times New Roman", Times, serif'>Georgia</option>
+                  <option value='Calibri, "Segoe UI", Roboto, Arial, Helvetica, sans-serif'>Calibri</option>
+                  <option value='Inter, Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif'>Inter</option>
+                  <option value='Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif'>Roboto</option>
+                  <option value='Arial, "Helvetica Neue", Helvetica, sans-serif'>Arial</option>
+                  <option value='"Helvetica Neue", Helvetica, Arial, sans-serif'>Helvetica Neue</option>
+                  <option value='"Courier New", Courier, monospace'>Courier New</option>
+                  <option value='ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'>Serif</option>
+                  <option
+                    value='ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"'>
+                    Sans-serif
+                  </option>
+                  <option
+                    value='ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'>
+                    Monospace
+                  </option>
+                </select>
+              </div>
+              <div class="field">
+                <select @change="setFontSize($event.target.value || null)">
+                  <option value="">Default</option>
+                  <option value="8px">8</option>
+                  <option value="9px">9</option>
+                  <option value="10px">10</option>
+                  <option value="11px">11</option>
+                  <option value="12px">12</option>
+                  <option value="14px">14</option>
+                  <option value="16px">16</option>
+                  <option value="18px">18</option>
+                  <option value="20px">20</option>
+                  <option value="24px">24</option>
+                  <option value="28px">28</option>
+                  <option value="32px">32</option>
+                  <option value="36px">36</option>
+                  <option value="48px">48</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
-        <div class="flex gap-2">
-          <button class="btn" @click="replaceImage">Replace Image</button>
-          <button class="btn btn-danger" @click="store.deleteSelected">Delete Image</button>
+          <div class="tool-card">
+            <div class="tool-title">Text Align</div>
+            <div class="seg">
+              <button class="seg-btn" title="Left" aria-label="Left" :class="{ active: isActiveAlign('left') }"
+                @click="setAlign('left')">Left</button>
+              <button class="seg-btn" title="Center" aria-label="Center" :class="{ active: isActiveAlign('center') }"
+                @click="setAlign('center')">Center</button>
+            </div>
+          </div>
+
+          <div class="tool-card">
+            <div class="tool-title">Font Formatting</div>
+            <div class="seg">
+              <button class="seg-btn" title="Bold" aria-label="Bold"
+                :class="{ active: store.activeEditor?.isActive('bold') }"
+                @click="toggleBold"><strong>B</strong></button>
+              <button class="seg-btn" title="Italic" aria-label="Italic"
+                :class="{ active: store.activeEditor?.isActive('italic') }"
+                @click="toggleItalic"><em>I</em></button>
+            </div>
+          </div>
+
+          <div class="tool-card">
+            <div class="tool-title">Text Color</div>
+            <div class="seg" style="justify-content: center;">
+              <input type="color" v-model="textColor" @input="applyColor" class="color-picker" />
+            </div>
+          </div>
+
+          <div class="tool-card">
+            <div class="tool-title">Set Link</div>
+            <div class="seg">
+              <button class="seg-btn" title="Insert Link" aria-label="Insert Link" @click="setLink">Insert</button>
+              <button class="seg-btn" title="Remove Link" aria-label="Remove Link" @click="unsetLink">Remove</button>
+            </div>
+          </div>
+
+          <div class="delete-wrapper">
+            <button class="delete-btn small" @click="store.deleteSelected">Delete</button>
+          </div>
         </div>
-      </div>
+        <!-- Float Image (Nothing selected inside) -->
+        <div v-else class="empty">
+          Click the image or text area to edit its settings.
+        </div>
+      </template>
 
       <!-- get video block editing tools -->
       <div v-else-if="store.selected.type === 'video'" class="mt-4 rounded bg-white/70 p-3">
@@ -315,9 +602,10 @@
 <script setup>
 import { computed, ref, onMounted, nextTick } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
-
+import ImageSettingsPanel from "@/components/ImageSettingsPanel.vue";
 const store = useEditorStore()
 const curr = computed(() => store.currSection)
+const textColor = ref('#000000')
 
 // GitHub configuration
 const githubOwner = ref('')
@@ -370,12 +658,113 @@ function toggleItalic() {
   store.activeEditor?.chain().focus().toggleItalic().run()
 }
 
+function normalizeSize(val) {
+  if (val == null || val === '') return null
+  const s = String(val).trim()
+  if (/^\d+(\.\d+)?$/.test(s)) return `${s}px`
+  if (/^\d+(\.\d+)?(px|em|rem|%)$/.test(s)) return s
+  return null
+}
+
+function setFontSize(size) {
+  const ed = store.activeEditor
+  if (!ed) return
+  const v = normalizeSize(size)
+  const chain = ed.chain().focus()
+  if (v) {
+    chain.setMark('textStyle', { fontSize: v }).run()
+  } else {
+    chain.updateAttributes('textStyle', { fontSize: null })
+         .removeEmptyTextStyle()
+         .run()
+  }
+}
+
+function isDropCapActive() {
+  const ed = store.activeEditor
+  if (!ed) return false
+  const { $from } = ed.state.selection
+  const start = $from.start()
+  ed.chain().setTextSelection({ from: start, to: start + 1 }).run()
+  const a = ed.getAttributes('textStyle')
+  return a?.float === 'left' && a?.display === 'inline-block'
+}
+
+function toggleDropCap() {
+  const ed = store.activeEditor
+  if (!ed) return
+
+  const { $from } = ed.state.selection
+  const start = $from.start()
+  const firstChar = ed.state.doc.textBetween(start, start + 1)
+  if (!firstChar) return
+  ed.chain().focus().setTextSelection({ from: start, to: start + 1 }).run()
+
+  const chain = ed.chain().focus()
+  if (isDropCapActive()) {
+    chain.updateAttributes('textStyle', {
+      float: null,
+      display: null,
+      fontSize: null,
+      lineHeight: null,
+      marginRight: null,
+      marginTop: null,
+      fontWeight: null,
+    }).removeEmptyTextStyle().run()
+  } else {
+    const cs = getComputedStyle(
+      (function () {
+        let node = ed.view.domAtPos($from.pos).node
+        if (node?.nodeType === 3) node = node.parentElement
+        return node?.closest('p') || node
+      })() || ed.view.dom
+    )
+    const fs = parseFloat(cs.fontSize) || 16
+    const lhPx = cs.lineHeight === 'normal' ? 1.2 * fs : parseFloat(cs.lineHeight)
+    const lhEm = (lhPx / fs) || 1.6
+    const sizeEm = (1.24 * lhEm).toFixed(3) + 'em'
+
+    chain.setMark('textStyle', {
+      float: 'left',
+      display: 'inline-block',
+      fontSize: sizeEm,
+      lineHeight: '2',
+      marginRight: '0.25em',
+      marginTop: '0em',
+      fontWeight: '700',
+    }).run()
+  }
+}
+
 function setAlign(align) {
   store.activeEditor?.chain().focus().setTextAlign(align).run()
 }
 
 function isActiveAlign(align) {
-  return !!store.activeEditor?.isActive({ TextAlign: align })
+  return !!store.activeEditor?.isActive({ textAlign: align })
+}
+
+function applyColor() {
+  if (store.activeEditor) {
+    store.activeEditor
+      .chain()
+      .focus()
+      .setColor(textColor.value)
+      .run()
+  }
+}
+
+function setFontFamily(family) {
+  const ed = store.activeEditor
+  if (!ed) return
+  const chain = ed.chain().focus()
+  if (family) {
+    chain.setMark('textStyle', { fontFamily: family }).run()
+  } else {
+    chain.updateAttributes('textStyle', { fontFamily: null })
+      .removeEmptyTextStyle()
+      .run()
+  }
 }
 
 function setLink() {
@@ -397,6 +786,16 @@ function replaceImage() {
     if (!file) return
     
     const blk = store.currBlock
+    if (!blk) return
+    if (blk.type === 'image') {
+      const idx = store.selected.imageIndex ?? 0
+      if (Array.isArray(blk.images) && blk.images[idx]) blk.images[idx].src = url
+      else if (blk.src) blk.src = url
+    } else if (blk.type === 'fullwidth-image') {
+      blk.image.src = url
+    } else if (blk.type === 'float-image') {
+      blk.image.src = url
+    }
     if (!blk || blk.type !== 'image') return
     
     // Clean up old blob URL if exists
@@ -501,6 +900,7 @@ const confirmAddVideo = () => {
 // Handle adding image block
 // Image modal state
 const showImageModal = ref(false)
+const imageType = ref('normal') // 'normal', 'fullwidth', or 'float'
 const imageSourceTab = ref('url') // 'url' or 'upload'
 const imageUrl = ref('')
 const imageUrlInput = ref(null)
@@ -510,6 +910,7 @@ const imagePreviewUrl = ref('')
 
 const handleAddImage = () => {
   showImageModal.value = true
+  imageType.value = 'normal'
   imageSourceTab.value = 'url'
   imageUrl.value = ''
   selectedImageFile.value = null
@@ -550,8 +951,6 @@ const handleFileSelect = (e) => {
 }
 
 const confirmAddImage = () => {
-  let imageSrc = ''
-  
   if (imageSourceTab.value === 'url') {
     const url = imageUrl.value.trim()
     if (!url) {
@@ -562,7 +961,15 @@ const confirmAddImage = () => {
     // Basic URL validation
     try {
       new URL(url)
-      imageSrc = url
+      // Add image based on selected type
+      if (imageType.value === 'normal') {
+        store.addImageBlock(url)
+      } else if (imageType.value === 'fullwidth') {
+        store.addFullWidthImageBlock(url)
+      } else if (imageType.value === 'float') {
+        store.addFloatImageBlock(url)
+      }
+      closeImageModal()
     } catch (error) {
       alert('⚠️ Please enter a valid URL!')
       return
@@ -573,12 +980,22 @@ const confirmAddImage = () => {
       return
     }
     
-    imageSrc = imagePreviewUrl.value
-  }
-  
-  if (imageSrc) {
-    store.addImageBlock(imageSrc)
-    closeImageModal()
+    // Convert file to Data URL to persist the image data
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const dataUrl = e.target.result
+      
+      // Add image based on selected type
+      if (imageType.value === 'normal') {
+        store.addImageBlock(dataUrl)
+      } else if (imageType.value === 'fullwidth') {
+        store.addFullWidthImageBlock(dataUrl)
+      } else if (imageType.value === 'float') {
+        store.addFloatImageBlock(dataUrl)
+      }
+      closeImageModal()
+    }
+    reader.readAsDataURL(selectedImageFile.value)
   }
 }
 
@@ -971,6 +1388,42 @@ const loadHTMLIntoEditor = async (htmlContent) => {
   color: #374151;
 }
 
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.field select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #111827;
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.field select:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, .25);
+}
+
 /* Segmented buttons */
 .seg {
   display: flex;
@@ -1031,6 +1484,23 @@ const loadHTMLIntoEditor = async (htmlContent) => {
 
 .delete-btn.small:active {
   transform: scale(0.97);
+}
+
+:deep(.ProseMirror) {
+  display: block;
+  overflow: visible;
+}
+
+:deep(.prose p) {
+  margin: 0 0 1em !important;
+  clear: none !important;
+  line-height: 1.6;
+}
+
+:deep(.ProseMirror p) {
+  margin:0 0 1em;
+  clear: none;
+  line-height: 1.6;
 }
 
 /* Video Modal Styles */
@@ -1260,6 +1730,59 @@ const loadHTMLIntoEditor = async (htmlContent) => {
 
 .tab-content {
   animation: fadeIn 0.2s ease;
+}
+
+/* Image Type Selection Styles */
+.image-type-section {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.image-type-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 4px;
+  background: #f3f4f6;
+  border-radius: 10px;
+}
+
+.type-tab-btn {
+  flex: 1;
+  padding: 12px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.type-tab-btn.active {
+  background: white;
+  color: #3b82f6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.type-tab-btn:hover:not(.active) {
+  color: #374151;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.type-description {
+  text-align: center;
+  margin-top: 8px;
+}
+
+.type-description p {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0;
+  font-style: italic;
 }
 
 /* Upload Area Styles */

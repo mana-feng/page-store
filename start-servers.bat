@@ -1,78 +1,88 @@
 @echo off
-chcp 65001 >nul
 cls
-echo.
 echo ========================================
-echo  Starting Newsworthy Editor
+echo  Newsworthy Editor - Quick Start
 echo ========================================
 echo.
 
+REM Check Node.js
 where node >nul 2>&1
 if errorlevel 1 (
-    echo Error: Node.js is not installed
+    echo [ERROR] Node.js not found
+    echo Please install Node.js from https://nodejs.org/
     pause
     exit /b 1
 )
-
-where npm >nul 2>&1
-if errorlevel 1 (
-    echo Error: npm is not installed
-    pause
-    exit /b 1
-)
-
-if not exist "Newsworthy Editor" (
-    echo Error: Newsworthy Editor directory not found
-    pause
-    exit /b 1
-)
-
-if not exist "Newsworthy Editor\backend" (
-    echo Error: Backend directory not found
-    pause
-    exit /b 1
-)
-
-echo Checking dependencies...
+echo [OK] Node.js found
 echo.
 
+REM Check project structure
+if not exist "Newsworthy Editor\backend\package.json" (
+    echo [ERROR] Backend not found
+    pause
+    exit /b 1
+)
+
+if not exist "Newsworthy Editor\package.json" (
+    echo [ERROR] Frontend not found
+    pause
+    exit /b 1
+)
+
+REM Install backend dependencies
 if not exist "Newsworthy Editor\backend\node_modules" (
     echo Installing backend dependencies...
     cd "Newsworthy Editor\backend"
     call npm install
+    if errorlevel 1 (
+        echo [ERROR] Backend install failed
+        pause
+        exit /b 1
+    )
     cd ..\..
+    echo.
 )
 
+REM Install frontend dependencies
 if not exist "Newsworthy Editor\node_modules" (
     echo Installing frontend dependencies...
     cd "Newsworthy Editor"
     call npm install
+    if errorlevel 1 (
+        echo [ERROR] Frontend install failed
+        pause
+        exit /b 1
+    )
     cd ..
+    echo.
 )
 
-echo.
-echo Starting servers in new windows...
-echo.
+REM Create .env if needed
+if not exist "Newsworthy Editor\backend\.env" (
+    if exist "Newsworthy Editor\backend\env.example" (
+        echo Creating .env file...
+        copy "Newsworthy Editor\backend\env.example" "Newsworthy Editor\backend\.env" >nul
+    )
+)
 
-set BACKEND_DIR=%~dp0Newsworthy Editor\backend
-set FRONTEND_DIR=%~dp0Newsworthy Editor
+REM Start backend
+echo Starting backend...
+start "Backend" cmd /k "cd /d "%~dp0Newsworthy Editor\backend" && node server.js"
 
-start "Backend Server" cmd /k "cd /d "%BACKEND_DIR%" & node server.js"
-
+REM Wait for backend
 timeout /t 3 /nobreak >nul
 
-start "Frontend Server" cmd /k "cd /d "%FRONTEND_DIR%" & npm run dev"
+REM Start frontend
+echo Starting frontend...
+start "Frontend" cmd /k "cd /d "%~dp0Newsworthy Editor" && npm run dev"
 
 echo.
-echo Servers started
+echo ========================================
+echo  Servers Started!
+echo ========================================
 echo Backend:  http://localhost:3001
 echo Frontend: http://localhost:5173
 echo.
-echo Opening browser in 5 seconds...
 timeout /t 5 /nobreak >nul
-
 start http://localhost:5173
-
-echo.
-echo Close the server windows to stop
 pause
