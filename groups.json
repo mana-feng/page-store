@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "exported_at": "2025-10-29T09:20:19.899Z",
+  "groups": [
+    {
+      "id": 1,
+      "name": "1111",
+      "description": null,
+      "color": "#3b82f6",
+      "created_at": "2025-10-27 10:44:25",
+      "updated_at": "2025-10-27 10:44:25"
+    },
+    {
+      "id": 2,
+      "name": "2222222",
+      "description": null,
+      "color": "#3b82f6",
+      "created_at": "2025-10-29 09:02:19",
+      "updated_at": "2025-10-29 09:02:19"
+    },
+    {
+      "id": 3,
+      "name": "333333",
+      "description": null,
+      "color": "#3b82f6",
+      "created_at": "2025-10-29 09:02:25",
+      "updated_at": "2025-10-29 09:02:25"
+    },
+    {
+      "id": 4,
+      "name": "444444",
+      "description": null,
+      "color": "#3b82f6",
+      "created_at": "2025-10-29 09:02:28",
+      "updated_at": "2025-10-29 09:02:28"
+    },
+    {
+      "id": 5,
+      "name": "555555",
+      "description": null,
+      "color": "#3b82f6",
+      "created_at": "2025-10-29 09:02:31",
+      "updated_at": "2025-10-29 09:02:31"
+    }
+  ]
+}
