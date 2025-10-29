@@ -3,11 +3,9 @@
     <div v-for="section in store.sections" :key="section.id" class="section-block"
       :class="{ 'checked': store.selected?.type === 'section' && store.selected?.sectionId === section.id }"
       :style="sectionStyle(section.props)" @click.stop="store.selectSection(section.id)">
-      <!-- blocks -->
       <div v-for="blk in section.blocks" :key="blk.id" class="block-wrapper"
         :class="{ 'block-checked': store.selected?.type === blk.type && store.selected?.blockId === blk.id }"
         @click.stop="store.selectBlock(section.id, blk.id, blk.type)">
-        <!-- Text Block -->
         <div v-if="blk.type === 'text'" class="text-wrapper"
           :style="{ maxWidth: blk.props?.width || '65ch', width: '100%', margin: '0 auto' }">
           <TipTapBlock v-model="blk.html" @focused="(ed) => {
@@ -16,7 +14,6 @@
           }" />
         </div>
 
-        <!-- Image Block -->
         <figure v-else-if="blk.type === 'image'" class="image-block">
           <div class="image-grid">
             <div
@@ -51,7 +48,6 @@
           </div>
         </figure>
 
-        <!-- Fullwidth Image Block -->
         <figure
           v-else-if="blk.type === 'fullwidth-image'"
           class="fullwidth-image-block"
@@ -81,7 +77,6 @@
           </figcaption>
         </figure>
 
-        <!-- Float Image Block -->
         <figure
           v-else-if="blk.type === 'float-image'"
           class="float-image-block"
@@ -122,7 +117,6 @@
           </div>
         </figure>
 
-        <!-- Video Block -->
         <div v-else-if="blk.type === 'video'" class="video-block">
           <iframe 
             :width="blk.width" 
@@ -247,7 +241,6 @@ const TipTapBlock = defineComponent({
         },
         onFocus: () => emit('focused', editor.value)
       })
-      console.log('TipTap editor init:', editor.value)
     })
 
     // Synchronize content during external changes

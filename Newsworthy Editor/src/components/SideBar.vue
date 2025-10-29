@@ -8,12 +8,10 @@
       <button class="btn" @click="handleAddImage" :disabled="!store.currSection">+ Add Image Block</button>
       <button class="btn" @click="handleAddVideo" :disabled="!store.currSection">+ Add Video Block</button>
       <button class="btn" @click="$emit('add-parallax')">+ Add Parallax</button>
-      <button class="btn btn-github" @click="handleSaveToGitHub">🚀 Save to GitHub Pages</button>
       <button class="btn btn-storage" @click="$emit('open-storage')">📚 Storage Manager</button>
       <button class="btn btn-settings" @click="$emit('open-settings')">⚙️ Settings</button>
     </div>
 
-    <!-- Video URL Modal -->
     <div v-if="showVideoModal" class="modal-overlay" @click.self="closeVideoModal">
       <div class="modal-container">
         <div class="modal-header">
@@ -48,7 +46,6 @@
       </div>
     </div>
 
-    <!-- Image URL Modal -->
     <div v-if="showImageModal" class="modal-overlay" @click.self="closeImageModal">
       <div class="modal-container">
         <div class="modal-header">
@@ -56,7 +53,6 @@
           <button class="modal-close" @click="closeImageModal">×</button>
         </div>
         <div class="modal-body">
-          <!-- Image Type Selection -->
           <div class="image-type-section">
             <label class="modal-label">Image Type</label>
             <div class="image-type-tabs">
@@ -89,7 +85,6 @@
             </div>
           </div>
 
-          <!-- Image Source Selection -->
           <div class="image-source-tabs">
             <button 
               class="tab-btn" 
@@ -107,7 +102,6 @@
             </button>
           </div>
 
-          <!-- URL Input Tab -->
           <div v-if="imageSourceTab === 'url'" class="tab-content">
             <label class="modal-label">Image URL</label>
             <input 
@@ -128,7 +122,6 @@
             </div>
           </div>
 
-          <!-- File Upload Tab -->
           <div v-if="imageSourceTab === 'upload'" class="tab-content">
             <label class="modal-label">Choose Image File</label>
             <div class="upload-area" @click="triggerFileInput">
@@ -162,12 +155,10 @@
     <div class="details">
       <div class="detail-title">Detail Editing Area</div>
 
-      <!-- notselected -->
       <div v-if="!store.selected.type" class="empty">
         Choose a section/text block/img block in Canvas to get editing tools.
       </div>
 
-      <!-- get section editing tools -->
       <div v-else-if="store.selected.type === 'section'" class="section-panel">
         <div class="panel-header">Section Setting</div>
 
@@ -203,7 +194,6 @@
         <button class="danger-btn" @click="store.deleteSelected">Delete</button>
       </div>
 
-      <!-- get text block editing tools -->
       <div v-else-if="store.selected.type === 'text'" class="mt-4 rounded bg-white/70 p-3">
         <div class="tool-card">
           <div class="tool-title">Text Style</div>
@@ -331,7 +321,6 @@
         </div>
       </div>
 
-      <!-- get image block editing tools -->
       <ImageSettingsPanel
         v-else-if="store.selected.type === 'image'"
         :model="store.currImage"
@@ -361,7 +350,6 @@
       />
 
       <template v-else-if="store.selected.type === 'float-image'">
-        <!-- Float Image (Image part) Settings -->
         <div
           v-if="store.selected.part === 'image'"
           class="mt-4 rounded bg-white/70 p-3"
@@ -431,7 +419,6 @@
           </div>
         </div>
 
-        <!-- Float Image (Text part) Settings -->
         <div
           v-else-if="store.selected.part === 'text'"
           class="mt-4 rounded bg-white/70 p-3"
@@ -550,13 +537,11 @@
             <button class="delete-btn small" @click="store.deleteSelected">Delete</button>
           </div>
         </div>
-        <!-- Float Image (Nothing selected inside) -->
         <div v-else class="empty">
           Click the image or text area to edit its settings.
         </div>
       </template>
 
-      <!-- get video block editing tools -->
       <div v-else-if="store.selected.type === 'video'" class="mt-4 rounded bg-white/70 p-3">
         <div class="panel-header">Video Settings</div>
 
@@ -600,31 +585,19 @@
 
 
 <script setup>
-import { computed, ref, onMounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useEditorStore } from '@/stores/editorStore'
 import ImageSettingsPanel from "@/components/ImageSettingsPanel.vue";
 const store = useEditorStore()
 const curr = computed(() => store.currSection)
 const textColor = ref('#000000')
-
-// GitHub configuration
 const githubOwner = ref('')
 const githubRepo = ref('')
-
-// Helper function to build full GitHub URL from relative path
 function buildGitHubUrl(relativePath) {
-  if (!relativePath || !githubOwner.value || !githubRepo.value) {
-    return null;
-  }
-  // If it's already a full URL, return as is
-  if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
-    return relativePath;
-  }
-  // Build full URL from relative path
+  if (!relativePath || !githubOwner.value || !githubRepo.value) return null;
+  if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) return relativePath;
   return `https://${githubOwner.value}.github.io/${githubRepo.value}/${relativePath}`;
 }
-
-// Fetch GitHub configuration on mount
 async function fetchGitHubConfig() {
   try {
     const response = await fetch('http://localhost:3001/api/github/status');
@@ -640,6 +613,11 @@ async function fetchGitHubConfig() {
 
 onMounted(() => {
   fetchGitHubConfig();
+  document.addEventListener('trigger-save-new', handleSaveToGitHub);
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('trigger-save-new', handleSaveToGitHub);
 })
 
 function setHeading(level) {
@@ -863,8 +841,6 @@ const clearImage = () => {
   store.setSecType('color')
 }
 
-// Handle adding video block
-// Video modal state
 const showVideoModal = ref(false)
 const videoUrl = ref('')
 const videoUrlInput = ref(null)
@@ -872,10 +848,7 @@ const videoUrlInput = ref(null)
 const handleAddVideo = () => {
   showVideoModal.value = true
   videoUrl.value = ''
-  // Focus input after modal opens
-  nextTick(() => {
-    videoUrlInput.value?.focus()
-  })
+  nextTick(() => videoUrlInput.value?.focus())
 }
 
 const closeVideoModal = () => {
@@ -884,24 +857,18 @@ const closeVideoModal = () => {
 }
 
 const confirmAddVideo = () => {
-  console.log('🎬 confirmAddVideo called, videoUrl:', videoUrl.value);
-  
   if (!videoUrl.value.trim()) {
     alert('⚠️ Please enter a YouTube URL')
     return
   }
   
-  console.log('🎬 Calling store.addVideoBlock with:', videoUrl.value.trim());
   store.addVideoBlock(videoUrl.value.trim())
-  console.log('🎬 Closing video modal');
   closeVideoModal()
 }
 
-// Handle adding image block
-// Image modal state
 const showImageModal = ref(false)
-const imageType = ref('normal') // 'normal', 'fullwidth', or 'float'
-const imageSourceTab = ref('url') // 'url' or 'upload'
+const imageType = ref('normal')
+const imageSourceTab = ref('url')
 const imageUrl = ref('')
 const imageUrlInput = ref(null)
 const imageFileInput = ref(null)
@@ -915,11 +882,8 @@ const handleAddImage = () => {
   imageUrl.value = ''
   selectedImageFile.value = null
   imagePreviewUrl.value = ''
-  // Focus input after modal opens
   nextTick(() => {
-    if (imageSourceTab.value === 'url') {
-      imageUrlInput.value?.focus()
-    }
+    if (imageSourceTab.value === 'url') imageUrlInput.value?.focus()
   })
 }
 
@@ -940,12 +904,9 @@ const triggerFileInput = () => {
 const handleFileSelect = (e) => {
   const file = e.target.files?.[0]
   if (!file) return
-  
-  // Clean up previous preview URL
   if (imagePreviewUrl.value && imagePreviewUrl.value.startsWith('blob:')) {
     URL.revokeObjectURL(imagePreviewUrl.value)
   }
-  
   selectedImageFile.value = file
   imagePreviewUrl.value = URL.createObjectURL(file)
 }
@@ -957,18 +918,11 @@ const confirmAddImage = () => {
       alert('⚠️ Please enter a valid image URL!')
       return
     }
-    
-    // Basic URL validation
     try {
       new URL(url)
-      // Add image based on selected type
-      if (imageType.value === 'normal') {
-        store.addImageBlock(url)
-      } else if (imageType.value === 'fullwidth') {
-        store.addFullWidthImageBlock(url)
-      } else if (imageType.value === 'float') {
-        store.addFloatImageBlock(url)
-      }
+      if (imageType.value === 'normal') store.addImageBlock(url, 'url')
+      else if (imageType.value === 'fullwidth') store.addFullWidthImageBlock(url, 'url')
+      else if (imageType.value === 'float') store.addFloatImageBlock(url, 'url')
       closeImageModal()
     } catch (error) {
       alert('⚠️ Please enter a valid URL!')
@@ -979,33 +933,27 @@ const confirmAddImage = () => {
       alert('⚠️ Please select an image file!')
       return
     }
-    
-    // Convert file to Data URL to persist the image data
     const reader = new FileReader()
     reader.onload = (e) => {
       const dataUrl = e.target.result
-      
-      // Add image based on selected type
-      if (imageType.value === 'normal') {
-        store.addImageBlock(dataUrl)
-      } else if (imageType.value === 'fullwidth') {
-        store.addFullWidthImageBlock(dataUrl)
-      } else if (imageType.value === 'float') {
-        store.addFloatImageBlock(dataUrl)
-      }
+      if (imageType.value === 'normal') store.addImageBlock(dataUrl, 'upload')
+      else if (imageType.value === 'fullwidth') store.addFullWidthImageBlock(dataUrl, 'upload')
+      else if (imageType.value === 'float') store.addFloatImageBlock(dataUrl, 'upload')
       closeImageModal()
     }
     reader.readAsDataURL(selectedImageFile.value)
   }
 }
 
+let isSaving = false;
+
 const handleSaveToGitHub = async () => {
+  if (isSaving) return;
   if (store.sections.length === 0) {
     alert('⚠️ Please add content before saving!')
     return
   }
-  
-  // Check if GitHub is configured
+  isSaving = true;
   try {
     const configCheck = await fetch('http://localhost:3001/api/settings/github')
     const configData = await configCheck.json()
@@ -1016,27 +964,32 @@ const handleSaveToGitHub = async () => {
         'You must configure GitHub Pages settings before saving.\n\n' +
         'Click OK to open Settings.'
       )
-      if (shouldConfigure) {
-        // Emit event to open settings
-        document.dispatchEvent(new CustomEvent('open-settings'))
-      }
+      if (shouldConfigure) document.dispatchEvent(new CustomEvent('open-settings'))
+      isSaving = false;
       return
     }
   } catch (error) {
     alert('❌ Failed to check GitHub configuration. Please ensure the backend server is running.')
+    isSaving = false;
     return
   }
   
   const title = prompt('📝 Enter page title:', 'My Page')
-  if (!title) return
+  if (!title) {
+    isSaving = false;
+    return
+  }
   
   const filename = prompt('📄 Enter filename (without .html):', title.replace(/\s+/g, '-').toLowerCase())
-  if (!filename) return
+  if (!filename) {
+    isSaving = false;
+    return
+  }
   
   try {
-    const htmlContent = await store.generateHTML()
-    // Save sections data for future editing
-    const sectionsData = JSON.parse(JSON.stringify(store.sections))
+    const htmlContent = await store.exportToHTML()
+    const sectionsData = await store.prepareSectionsForSave()
+    const previewImage = await store.generatePreviewImage()
     
     const response = await fetch('http://localhost:3001/api/pages', {
       method: 'POST',
@@ -1046,7 +999,8 @@ const handleSaveToGitHub = async () => {
         filename,
         html_content: htmlContent,
         sections_data: sectionsData,
-        group_id: null
+        group_id: null,
+        preview_image: previewImage
       })
     })
     
@@ -1056,7 +1010,6 @@ const handleSaveToGitHub = async () => {
         const fullUrl = buildGitHubUrl(data.github_url);
         if (fullUrl) {
           alert(`✅ Successfully saved to GitHub Pages!\n\n🌐 URL: ${fullUrl}\n\n📋 The URL has been copied to your clipboard.`)
-          // Copy URL to clipboard
           navigator.clipboard.writeText(fullUrl).catch(() => {})
         } else {
           alert('✅ Saved to database, but GitHub Pages URL is not available.')
@@ -1071,29 +1024,8 @@ const handleSaveToGitHub = async () => {
   } catch (error) {
     console.error('Save to GitHub error:', error)
     alert('❌ Save failed. Please ensure the backend server is running.')
-  }
-}
-
-
-// Helper function to load HTML content into editor
-const loadHTMLIntoEditor = async (htmlContent) => {
-  try {
-    // This is a simplified version - you might need to implement proper HTML parsing
-    // For now, we'll create a basic section with the HTML content
-    store.addSection()
-    const currentSection = store.currSection
-    if (currentSection) {
-      // Add the HTML content as a text block
-      store.addTextBlock()
-      const textBlock = currentSection.blocks[currentSection.blocks.length - 1]
-      if (textBlock && textBlock.editor) {
-        // Set the HTML content in the editor
-        textBlock.editor.commands.setContent(htmlContent)
-      }
-    }
-  } catch (error) {
-    console.error('Error loading HTML into editor:', error)
-    throw error
+  } finally {
+    isSaving = false;
   }
 }
 

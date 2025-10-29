@@ -5,6 +5,13 @@ export const useEditorStore = defineStore('editor', () => {
     // stored all sections
     const sections = ref([])
 
+    // Track the currently loaded page for update functionality
+    const currentPageInfo = ref({
+        filename: null,  // The original filename
+        title: null,     // The original title
+        isLoaded: false  // Whether a page is loaded for editing
+    })
+
     // selected object
     const selected = ref({
         type: null, // section/text/img/video
@@ -54,7 +61,7 @@ export const useEditorStore = defineStore('editor', () => {
         selected.value = { type: 'text', sectionId: sec.id, blockId: newBlock.id };
     };
 
-    const addImageBlock = (src) => {
+    const addImageBlock = (src, sourceType = 'url') => {
         const sec = currSection.value;
         if (!sec) {
             alert('⚠️ Please select a section first!');
@@ -70,6 +77,7 @@ export const useEditorStore = defineStore('editor', () => {
         const imageObj = {
           id: Date.now() + Math.random(),
           src,
+          sourceType, // 'url' for external URLs, 'upload' for uploaded files (data URLs)
           width: Math.min(300, naturalW),
           height: Math.min(300, naturalH),
           aspectRatio: ratio,
@@ -147,10 +155,7 @@ export const useEditorStore = defineStore('editor', () => {
 
     // Add a video block
     const addVideoBlock = (url) => {
-        console.log('🎬 addVideoBlock called with URL:', url);
-        
         const sec = currSection.value;
-        console.log('📋 Current section:', sec);
         
         if (!sec) {
             alert('⚠️ Please select a section first!');
@@ -159,7 +164,6 @@ export const useEditorStore = defineStore('editor', () => {
 
         // Extract YouTube video ID
         const videoId = extractYouTubeId(url);
-        console.log('🆔 Extracted video ID:', videoId);
         
         if (!videoId) {
             alert('❌ Invalid YouTube URL. Please enter a valid YouTube video link.');
@@ -181,10 +185,8 @@ export const useEditorStore = defineStore('editor', () => {
             keepRatio: true,
         };
 
-        console.log('✅ Adding video block:', newBlock);
         sec.blocks.push(newBlock);
         selected.value = { type: 'video', sectionId: sec.id, blockId: newBlock.id };
-        console.log('✅ Video block added successfully');
     };
 
     // change img
@@ -288,10 +290,6 @@ export const useEditorStore = defineStore('editor', () => {
     // click text or img block
     const selectBlock = (sectionId, blockId, blockType, imageIndex = null, part = null) => {
       selected.value = { type: blockType, sectionId, blockId, imageIndex, part };
-
-      console.log('selectBlock:', { sectionId, blockId, blockType, imageIndex, part });
-      console.log('store.selected after set:', JSON.parse(JSON.stringify(selected.value)));
-
     }
 
     // click nothing
@@ -399,7 +397,7 @@ export const useEditorStore = defineStore('editor', () => {
       delete blk.captionPosition
     }
 
-      const addFullWidthImageBlock = (src) => {
+      const addFullWidthImageBlock = (src, sourceType = 'url') => {
         const sec = currSection.value
         if (!sec) return
 
@@ -415,6 +413,7 @@ export const useEditorStore = defineStore('editor', () => {
             image: {
               id: Date.now() + Math.random(),
               src,
+              sourceType, // 'url' for external URLs, 'upload' for uploaded files
               aspectRatio,
               captionPosition: 'bottom',
               captionBubbleAnimated: false,
@@ -462,7 +461,7 @@ export const useEditorStore = defineStore('editor', () => {
       }
 
       // Float Image Block
-      const addFloatImageBlock = (src) => {
+      const addFloatImageBlock = (src, sourceType = 'url') => {
         const sec = currSection.value;
         if (!sec) return;
 
@@ -472,6 +471,7 @@ export const useEditorStore = defineStore('editor', () => {
           image: {
             id: Date.now() + Math.random(),
             src,
+            sourceType, // 'url' for external URLs, 'upload' for uploaded files
             align: 'right',
             widthPercent: 45,
             keepRatio: true,
@@ -602,20 +602,45 @@ export const useEditorStore = defineStore('editor', () => {
     };
 
     const exportToHTML = async () => {
-        // Convert all blob URLs to base64 before export
+        // Convert blob URLs to base64 before export
+        // BUT keep external URLs as-is (don't convert them to base64)
         const sectionsClone = JSON.parse(JSON.stringify(sections.value));
         
         for (const section of sectionsClone) {
-            // Convert section background image if it's a blob URL
+            // Convert section background image if it's a blob URL (temporary upload preview)
+            // Background images from file uploads are stored as blob URLs during editing
             if (section.props?.bgImg && section.props.bgImg.startsWith('blob:')) {
                 section.props.bgImg = await blobUrlToBase64(section.props.bgImg);
             }
             
-            // Convert image blocks if they use blob URLs
+            // Process image blocks
             if (section.blocks) {
                 for (const block of section.blocks) {
-                    if (block.type === 'image' && block.src && block.src.startsWith('blob:')) {
-                        block.src = await blobUrlToBase64(block.src);
+                    if (block.type === 'image' && block.images && Array.isArray(block.images)) {
+                        // Process each image in the block
+                        for (const img of block.images) {
+                            // Only convert blob URLs (temporary) or images marked as 'upload'
+                            // Keep external URLs as-is
+                            if (img.src && img.src.startsWith('blob:')) {
+                                // Blob URL - convert to base64
+                                img.src = await blobUrlToBase64(img.src);
+                            }
+                            // If sourceType is 'url', keep the URL as-is (already external URL)
+                            // If sourceType is 'upload', it's already a data URL, keep as-is
+                            // No conversion needed for data URLs or external URLs
+                        }
+                    } else if (block.type === 'fullwidth-image' && block.image) {
+                        // Process fullwidth image
+                        if (block.image.src && block.image.src.startsWith('blob:')) {
+                            block.image.src = await blobUrlToBase64(block.image.src);
+                        }
+                        // Keep external URLs and data URLs as-is
+                    } else if (block.type === 'float-image' && block.image) {
+                        // Process float image
+                        if (block.image.src && block.image.src.startsWith('blob:')) {
+                            block.image.src = await blobUrlToBase64(block.image.src);
+                        }
+                        // Keep external URLs and data URLs as-is
                     }
                     // Video blocks don't need conversion as they use YouTube embed URLs
                 }
@@ -849,12 +874,40 @@ export const useEditorStore = defineStore('editor', () => {
                     htmlContent += `                ${block.html || '<p></p>'}\n`;
                     htmlContent += `            </div>\n`;
                 } else if (block.type === 'image') {
-                    const imgWidth = block.width || 300;
-                    const imgHeight = block.height || 300;
-                    const objectFit = block.keepRatio ? 'contain' : 'fill';
-                    htmlContent += `            <figure class="image-block">\n`;
-                    htmlContent += `                <img src="${block.src}" style="width: ${imgWidth}px; height: ${imgHeight}px; object-fit: ${objectFit}; object-position: center;" alt="Image" />\n`;
-                    htmlContent += `            </figure>\n`;
+                    // Handle images array structure
+                    if (block.images && Array.isArray(block.images) && block.images.length > 0) {
+                        const img = block.images[0]; // Use first image
+                        const imgWidth = img.width || 300;
+                        const imgHeight = img.height || 300;
+                        const objectFit = img.keepRatio ? 'contain' : 'fill';
+                        const imgSrc = img.src || '';
+                        htmlContent += `            <figure class="image-block">\n`;
+                        htmlContent += `                <img src="${imgSrc}" style="width: ${imgWidth}px; height: ${imgHeight}px; object-fit: ${objectFit}; object-position: center;" alt="Image" />\n`;
+                        htmlContent += `            </figure>\n`;
+                    }
+                } else if (block.type === 'fullwidth-image') {
+                    // Handle fullwidth image
+                    if (block.image && block.image.src) {
+                        const imgSrc = block.image.src || '';
+                        const imgHeight = block.image.height || 400;
+                        const objectFit = block.image.keepRatio ? 'contain' : 'cover';
+                        htmlContent += `            <figure class="fullwidth-image-block" style="width: 100%; margin: 0; padding: 0;">\n`;
+                        htmlContent += `                <img src="${imgSrc}" style="width: 100%; height: ${imgHeight}px; object-fit: ${objectFit}; object-position: center; display: block;" alt="Fullwidth Image" />\n`;
+                        htmlContent += `            </figure>\n`;
+                    }
+                } else if (block.type === 'float-image') {
+                    // Handle float image
+                    if (block.image && block.image.src) {
+                        const imgSrc = block.image.src || '';
+                        const imgWidth = block.image.width || 300;
+                        const imgHeight = block.image.height || 300;
+                        const objectFit = block.image.keepRatio ? 'contain' : 'cover';
+                        const floatPosition = block.float || 'left';
+                        const margin = floatPosition === 'left' ? '0 20px 10px 0' : '0 0 10px 20px';
+                        htmlContent += `            <figure class="float-image-block" style="float: ${floatPosition}; margin: ${margin};">\n`;
+                        htmlContent += `                <img src="${imgSrc}" style="width: ${imgWidth}px; height: ${imgHeight}px; object-fit: ${objectFit}; object-position: center; display: block;" alt="Float Image" />\n`;
+                        htmlContent += `            </figure>\n`;
+                    }
                 } else if (block.type === 'video') {
                     const videoWidth = block.width || 560;
                     const videoHeight = block.height || 315;
@@ -925,7 +978,73 @@ export const useEditorStore = defineStore('editor', () => {
         }
     };
 
-    const generateHTML = exportToHTML;
+
+    // Convert sections data blob URLs to base64 for saving
+    const prepareSectionsForSave = async () => {
+        const sectionsClone = JSON.parse(JSON.stringify(sections.value));
+        
+        for (const section of sectionsClone) {
+            // Convert section background image if it's a blob URL
+            if (section.props?.bgImg && section.props.bgImg.startsWith('blob:')) {
+                section.props.bgImg = await blobUrlToBase64(section.props.bgImg);
+            }
+            
+            // Process image blocks
+            if (section.blocks) {
+                for (const block of section.blocks) {
+                    if (block.type === 'image' && block.images && Array.isArray(block.images)) {
+                        // Process each image in the block
+                        for (const img of block.images) {
+                            if (img.src && img.src.startsWith('blob:')) {
+                                img.src = await blobUrlToBase64(img.src);
+                            }
+                        }
+                    } else if (block.type === 'fullwidth-image' && block.image) {
+                        if (block.image.src && block.image.src.startsWith('blob:')) {
+                            block.image.src = await blobUrlToBase64(block.image.src);
+                        }
+                    } else if (block.type === 'float-image' && block.image) {
+                        if (block.image.src && block.image.src.startsWith('blob:')) {
+                            block.image.src = await blobUrlToBase64(block.image.src);
+                        }
+                    }
+                }
+            }
+        }
+        
+        return sectionsClone;
+    };
+
+    // Generate preview image from canvas
+    const generatePreviewImage = async () => {
+        try {
+            // Find the canvas element
+            const canvasElement = document.querySelector('.canvas-area');
+            if (!canvasElement) {
+                console.warn('Canvas element not found for preview generation');
+                return null;
+            }
+
+            // Dynamically import html2canvas
+            const html2canvas = (await import('html2canvas')).default;
+            
+            // Capture the canvas as an image
+            const canvas = await html2canvas(canvasElement, {
+                backgroundColor: '#b9b9b9',
+                scale: 0.5, // Reduce scale for smaller preview image
+                logging: false,
+                useCORS: true, // Enable CORS for external images
+                allowTaint: true
+            });
+
+            // Convert canvas to base64 data URL
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            return dataUrl;
+        } catch (error) {
+            console.error('Error generating preview image:', error);
+            return null;
+        }
+    };
 
     // Clear all sections
     const clearAllSections = () => {
@@ -934,66 +1053,61 @@ export const useEditorStore = defineStore('editor', () => {
         sections.value = [];
         selected.value = { type: null, sectionId: null, blockId: null };
         activeEditor.value = null;
+        
+        // Clear page info when clearing content
+        currentPageInfo.value = {
+            filename: null,
+            title: null,
+            isLoaded: false
+        };
+    };
+
+    // Return to home - clear editor to initial state
+    const returnToHome = () => {
+        // Ask for confirmation if there's unsaved content
+        if (sections.value.length > 0 && !currentPageInfo.value.isLoaded) {
+            const confirmed = confirm(
+                '⚠️ You have unsaved content in the editor.\n\n' +
+                'Returning to home will clear all current content.\n\n' +
+                'Continue?'
+            );
+            if (!confirmed) return false;
+        }
+        
+        // Clear all content - return to initial empty state
+        clearAllSections();
+        
+        return true;
     };
 
     // Load sections data from saved page
-    const loadSections = (sectionsData) => {
+    const loadSections = (sectionsData, pageInfo = null) => {
         try {
-            console.log('🔄 Loading sections data...', sectionsData);
-            
             // Clear existing content first
             clearAllSections();
             
             // Parse and load sections data
             if (typeof sectionsData === 'string') {
-                console.log('📝 Parsing JSON string...');
                 sectionsData = JSON.parse(sectionsData);
             }
             
             if (Array.isArray(sectionsData)) {
-                console.log(`📦 Found ${sectionsData.length} sections to load`);
-                
                 // Deep clone the sections data to ensure reactivity
                 const clonedSections = JSON.parse(JSON.stringify(sectionsData));
                 
-                // Restore blob URLs for images and backgrounds
-                clonedSections.forEach((section, idx) => {
-                    console.log(`  Section ${idx + 1}:`, {
-                        id: section.id,
-                        blocks: section.blocks?.length || 0,
-                        bgType: section.props?.bgType
-                    });
-                    
-                    // Restore background blob URL if exists
-                    if (section.props && section.props.bgType === 'image' && section.props.bgImg) {
-                        // The bgImg should be a data URL or external URL, it will work as is
-                    }
-                    
-                    // Restore blocks
-                    if (section.blocks) {
-                        section.blocks.forEach((block, bidx) => {
-                            console.log(`    Block ${bidx + 1}:`, {
-                                type: block.type,
-                                hasHtml: block.type === 'text' && !!block.html,
-                                htmlLength: block.type === 'text' ? block.html?.length : 'N/A'
-                            });
-                            
-                            // Images should have their src intact
-                            if (block.type === 'image' && block.src) {
-                                // The src should be a data URL or external URL, it will work as is
-                            }
-                        });
-                    }
-                });
-                
                 sections.value = clonedSections;
-                console.log('✅ Loaded sections data:', sections.value.length, 'sections');
-                console.log('📊 Final sections state:', JSON.parse(JSON.stringify(sections.value)));
-            } else {
-                console.error('❌ Invalid sections data format:', typeof sectionsData);
+                
+                // Track page info if provided
+                if (pageInfo) {
+                    currentPageInfo.value = {
+                        filename: pageInfo.filename,
+                        title: pageInfo.title,
+                        isLoaded: true
+                    };
+                }
             }
         } catch (error) {
-            console.error('❌ Failed to load sections:', error);
+            console.error('Failed to load sections:', error);
             alert('Failed to load page content into editor');
         }
     };
@@ -1002,6 +1116,7 @@ export const useEditorStore = defineStore('editor', () => {
         // Core data
         sections,
         selected,
+        currentPageInfo,
         
         // Section operations
         addSection,
@@ -1073,10 +1188,12 @@ export const useEditorStore = defineStore('editor', () => {
         downloadHTML,
         generateIframeCode,
         copyIframeCode,
-        generateHTML,
+        prepareSectionsForSave,
+        generatePreviewImage,
         
         // Storage operations
         clearAllSections,
         loadSections,
+        returnToHome,
     }
 });

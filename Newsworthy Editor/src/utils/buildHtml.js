@@ -39,14 +39,73 @@ export function buildHtml(sections = []) {
         `
       }
       if (blk.type === 'image') {
-        const w = blk.width ? `width:${blk.width}px;` : ''
-        const h = blk.height ? `height:${blk.height}px;` : ''
-        const fit = blk.keepRatio ? 'object-fit:contain;' : 'object-fit:fill;'
+        // Handle images array structure
+        if (!blk.images || !Array.isArray(blk.images) || blk.images.length === 0) {
+          return ''
+        }
+        
+        // For now, render the first image from the images array
+        const img = blk.images[0]
+        const w = img.width ? `width:${img.width}px;` : ''
+        const h = img.height ? `height:${img.height}px;` : ''
+        const fit = img.keepRatio ? 'object-fit:contain;' : 'object-fit:fill;'
+        const src = img.src || ''
+        
         return `
           <div class="block-wrapper">
             <figure class="image-block">
-              <img src="${blk.src}" style="${w}${h}${fit}object-position:center;max-width:100%;display:block;" alt="" />
+              <img src="${src}" style="${w}${h}${fit}object-position:center;max-width:100%;display:block;" alt="" />
             </figure>
+          </div>
+        `
+      }
+      if (blk.type === 'fullwidth-image') {
+        // Handle fullwidth image
+        if (!blk.image || !blk.image.src) {
+          return ''
+        }
+        
+        const img = blk.image
+        const src = img.src || ''
+        const mode = img.mode || 'auto'
+        const height = img.height || 400
+        const fit = mode === 'fixed' ? 'object-fit:cover;' : 'object-fit:contain;'
+        const heightStyle = mode === 'fixed' ? `height:${height}px;` : 'height:auto;'
+        const caption = img.caption ? `<figcaption class="image-caption">${img.caption}</figcaption>` : ''
+        
+        return `
+          <div class="block-wrapper">
+            <figure class="fullwidth-image-block">
+              <img src="${src}" class="fullwidth-image" style="width:100%;display:block;${fit}${heightStyle}" alt="" />
+              ${caption}
+            </figure>
+          </div>
+        `
+      }
+      if (blk.type === 'float-image') {
+        // Handle float image with text
+        if (!blk.image || !blk.image.src) {
+          return ''
+        }
+        
+        const img = blk.image
+        const src = img.src || ''
+        const align = img.align || 'right'
+        const widthPercent = img.widthPercent || 45
+        const caption = img.caption ? `<figcaption class="image-caption">${img.caption}</figcaption>` : ''
+        const text = blk.text || '<p></p>'
+        
+        return `
+          <div class="block-wrapper">
+            <div class="float-image-container" style="display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap;">
+              <figure class="float-image-block" style="width:${widthPercent}%;margin:0;${align === 'left' ? 'order:1;' : 'order:2;'}">
+                <img src="${src}" style="width:100%;height:auto;display:block;" alt="" />
+                ${caption}
+              </figure>
+              <div class="float-text-content" style="flex:1;min-width:200px;${align === 'left' ? 'order:2;' : 'order:1;'}">
+                <div class="prose max-w-none">${text}</div>
+              </div>
+            </div>
           </div>
         `
       }

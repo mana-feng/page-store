@@ -120,6 +120,13 @@ export const pageOperations = {
     WHERE p.id = ?
   `),
   
+  getByFilename: db.prepare(`
+    SELECT p.*, g.name as group_name
+    FROM pages p
+    LEFT JOIN groups g ON p.group_id = g.id
+    WHERE p.filename = ?
+  `),
+  
   getByGroup: db.prepare(`
     SELECT * FROM pages
     WHERE group_id = ?
@@ -151,6 +158,104 @@ export const pageOperations = {
     WHERE p.title LIKE @query OR p.filename LIKE @query
     ORDER BY p.updated_at DESC
   `)
+};
+
+// Groups JSON sync operations
+export const groupsJsonOperations = {
+  /**
+   * Export all groups to JSON format
+   * @returns {Object} - Groups data in JSON format
+   */
+  exportToJson: () => {
+    const groups = groupOperations.getAll.all();
+    
+    // Remove page_count from export (it's a computed field)
+    const cleanGroups = groups.map(({ page_count, ...group }) => group);
+    
+    return {
+      version: '1.0',
+      exported_at: new Date().toISOString(),
+      groups: cleanGroups
+    };
+  },
+
+  /**
+   * Import groups from JSON format
+   * Merges with existing groups based on name (unique constraint)
+   * @param {Object} jsonData - Groups data in JSON format
+   * @returns {Object} - Import statistics
+   */
+  importFromJson: (jsonData) => {
+    if (!jsonData || !jsonData.groups || !Array.isArray(jsonData.groups)) {
+      throw new Error('Invalid JSON format: missing groups array');
+    }
+
+    const stats = {
+      total: jsonData.groups.length,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      errors: []
+    };
+
+    // Use transaction for atomic operations
+    const transaction = db.transaction((groups) => {
+      for (const group of groups) {
+        try {
+          // Check if group exists by name
+          const existing = db.prepare('SELECT * FROM groups WHERE name = ?').get(group.name);
+          
+          if (existing) {
+            // Update existing group
+            groupOperations.update.run({
+              id: existing.id,
+              name: group.name,
+              description: group.description || null,
+              color: group.color || '#3b82f6'
+            });
+            stats.updated++;
+          } else {
+            // Create new group
+            groupOperations.create.run({
+              name: group.name,
+              description: group.description || null,
+              color: group.color || '#3b82f6'
+            });
+            stats.created++;
+          }
+        } catch (error) {
+          stats.errors.push({ group: group.name, error: error.message });
+          stats.skipped++;
+        }
+      }
+    });
+
+    transaction(jsonData.groups);
+    
+    return stats;
+  },
+
+  /**
+   * Get groups as JSON string
+   * @returns {string} - JSON string
+   */
+  exportToJsonString: () => {
+    return JSON.stringify(groupsJsonOperations.exportToJson(), null, 2);
+  },
+
+  /**
+   * Import groups from JSON string
+   * @param {string} jsonString - JSON string
+   * @returns {Object} - Import statistics
+   */
+  importFromJsonString: (jsonString) => {
+    try {
+      const jsonData = JSON.parse(jsonString);
+      return groupsJsonOperations.importFromJson(jsonData);
+    } catch (error) {
+      throw new Error(`Failed to parse JSON: ${error.message}`);
+    }
+  }
 };
 
 export default db;

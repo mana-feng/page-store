@@ -5,7 +5,6 @@
       <button @click="closeManager" class="close-btn">✕</button>
     </div>
 
-    <!-- GitHub Status -->
     <div class="github-status" :class="{ connected: githubConnected }">
       <span class="status-icon">{{ githubConnected ? '✓' : '⚠' }}</span>
       <span>GitHub Pages: {{ githubConnected ? 'Connected' : 'Not Configured' }}</span>
@@ -14,7 +13,6 @@
       </span>
     </div>
 
-    <!-- Toolbar -->
     <div class="toolbar">
       <div class="search-box">
         <input 
@@ -32,12 +30,9 @@
       </button>
     </div>
 
-    <!-- Pages Section -->
     <div class="pages-section">
       <div class="section-header">
         <h3>Pages ({{ pages.length }})</h3>
-        
-        <!-- Group Filter Dropdown -->
         <div class="filter-controls">
           <div class="filter-dropdown" v-if="groups.length > 0">
             <div class="dropdown-trigger" @click="toggleGroupDropdown" :class="{ open: isGroupDropdownOpen }">
@@ -85,9 +80,30 @@
               </div>
             </transition>
           </div>
+          
+          <!-- Smart Sync Button -->
+          <button 
+            v-if="githubConnected"
+            @click="handleSmartSync" 
+            :disabled="isSyncingGroups"
+            class="btn-smart-sync"
+            :class="{ syncing: isSyncingGroups }"
+            title="Smart sync: merge local and GitHub groups, upload only if changed"
+          >
+            <span class="sync-icon">{{ isSyncingGroups ? '⏳' : '🔄' }}</span>
+          </button>
         </div>
 
         <div class="view-options">
+          <button 
+            @click="generateAllThumbnails" 
+            :disabled="isGeneratingThumbnails"
+            class="btn-generate-thumbnails"
+            :class="{ loading: isGeneratingThumbnails }"
+            title="Generate thumbnails for all pages"
+          >
+            {{ isGeneratingThumbnails ? '⏳ Generating...' : '🖼️ Generate Thumbnails' }}
+          </button>
           <button 
             @click="viewMode = 'grid'" 
             :class="{ active: viewMode === 'grid' }"
@@ -127,7 +143,12 @@
             <span>📄</span>
           </div>
           <div class="page-info">
-            <h4>{{ page.title }}</h4>
+            <h4>
+              {{ page.title }}
+              <span v-if="page.sections_data" class="editable-badge" title="Fully Editable">✨</span>
+              <span v-else-if="page.html_content && isEditableHtml(page.html_content)" class="convertible-badge" title="Convertible to Editable">🔄</span>
+              <span v-else class="metadata-only-badge" title="Metadata Only">📝</span>
+            </h4>
             <div class="page-meta">
               <span v-if="page.group_name" class="group-badge" :style="{ backgroundColor: page.group_color }">
                 {{ page.group_name }}
@@ -159,7 +180,12 @@
           <div class="page-row-content">
             <span class="drag-handle">⋮⋮</span>
             <div class="page-main">
-              <h4>{{ page.title }}</h4>
+              <h4>
+                {{ page.title }}
+                <span v-if="page.sections_data" class="editable-badge" title="Fully Editable">✨</span>
+                <span v-else-if="page.html_content && isEditableHtml(page.html_content)" class="convertible-badge" title="Convertible to Editable">🔄</span>
+                <span v-else class="metadata-only-badge" title="Metadata Only">📝</span>
+              </h4>
               <span class="filename">{{ page.filename }}</span>
             </div>
             <span v-if="page.group_name" class="group-badge" :style="{ backgroundColor: page.group_color }">
@@ -178,12 +204,12 @@
       </div>
     </div>
 
-    <!-- Group Management Dialog -->
     <div v-if="showGroupDialog" class="modal-overlay" @click.self="closeGroupDialog">
       <div class="modal-content group-manager-modal">
-        <h3>Manage Groups</h3>
+        <div class="group-manager-header">
+          <h3>Manage Groups</h3>
+        </div>
         
-        <!-- Create/Edit Form -->
         <div class="group-form-section">
           <h4>{{ editingGroup ? 'Edit Group' : 'Create New Group' }}</h4>
           <form @submit.prevent="saveGroup">
@@ -244,10 +270,9 @@
       </div>
     </div>
 
-    <!-- Page Edit Dialog -->
     <div v-if="showPageDialog" class="modal-overlay" @click.self="closePageDialog">
       <div class="modal-content">
-        <h3>Edit Page</h3>
+        <h3>Edit Page Metadata</h3>
         <form @submit.prevent="savePage">
           <div class="form-group">
             <label>Title *</label>
@@ -266,12 +291,23 @@
               </option>
             </select>
           </div>
+          
+          <!-- Edit HTML Content Button -->
+          <div v-if="editingPage && (editingPage.sections_data || editingPage.html_content)" class="edit-content-section">
+            <button type="button" @click="editHtmlContent" class="btn btn-edit-content">
+              ✏️ Edit HTML Content
+            </button>
+            <p class="help-text">
+              Open this page in the visual editor to modify its content
+            </p>
+          </div>
+          
           <div class="form-actions">
             <button type="button" @click="closePageDialog" class="btn btn-secondary">
               Cancel
             </button>
             <button type="submit" class="btn btn-primary">
-              Update
+              Update Metadata
             </button>
           </div>
         </form>
@@ -283,6 +319,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useEditorStore } from '../stores/editorStore';
+import { parseHtmlToSections, isEditableHtml } from '../utils/parseHtml';
 
 const API_BASE_URL = 'http://localhost:3001/api';
 const editorStore = useEditorStore();
@@ -303,6 +340,8 @@ const editingGroup = ref(null);
 const editingPage = ref(null);
 const draggedPage = ref(null);
 const isGroupDropdownOpen = ref(false);
+const isGeneratingThumbnails = ref(false);
+const isSyncingGroups = ref(false);
 
 const groupForm = ref({
   name: '',
@@ -459,8 +498,148 @@ async function deleteGroup(id) {
   }
 }
 
-// Edit page - load to editor if has sections_data, otherwise show metadata edit dialog
-async function editPage(page) {
+// GitHub Groups Sync Functions
+async function pushGroupsToGitHub() {
+  if (!githubConnected.value) {
+    alert('GitHub is not configured. Please configure GitHub settings first.');
+    return;
+  }
+
+  isSyncingGroups.value = true;
+  try {
+    const response = await fetch(`${API_BASE_URL}/groups/sync/push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok) {
+      alert('✅ Groups successfully synced to GitHub!');
+    } else {
+      throw new Error(result.error || 'Failed to sync groups');
+    }
+  } catch (error) {
+    console.error('Failed to push groups to GitHub:', error);
+    alert('❌ Failed to push groups to GitHub: ' + error.message);
+  } finally {
+    isSyncingGroups.value = false;
+  }
+}
+
+async function pullGroupsFromGitHub() {
+  if (!githubConnected.value) {
+    alert('GitHub is not configured. Please configure GitHub settings first.');
+    return;
+  }
+
+  if (!confirm('Pull groups from GitHub? This will update your local groups.')) {
+    return;
+  }
+
+  isSyncingGroups.value = true;
+  try {
+    const response = await fetch(`${API_BASE_URL}/groups/sync/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok) {
+      await loadGroups();
+      
+      if (result.stats) {
+        const msg = `✅ Groups synced from GitHub!\n\n` +
+                   `Created: ${result.stats.created}\n` +
+                   `Updated: ${result.stats.updated}\n` +
+                   `Skipped: ${result.stats.skipped}`;
+        alert(msg);
+      } else {
+        alert('ℹ️ No groups found on GitHub');
+      }
+    } else {
+      throw new Error(result.error || 'Failed to pull groups');
+    }
+  } catch (error) {
+    console.error('Failed to pull groups from GitHub:', error);
+    alert('❌ Failed to pull groups from GitHub: ' + error.message);
+  } finally {
+    isSyncingGroups.value = false;
+  }
+}
+
+// Smart sync: Export local → Pull GitHub → Merge → Compare → Upload if changed
+async function handleSmartSync() {
+  if (!githubConnected.value) {
+    alert('⚠️ GitHub is not configured. Please configure GitHub settings first.');
+    return;
+  }
+
+  isSyncingGroups.value = true;
+  try {
+    const response = await fetch(`${API_BASE_URL}/groups/sync/smart`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.error || 'Smart sync failed');
+    }
+
+    // Reload groups to show any merged changes
+    await loadGroups();
+
+    if (result.action === 'no_change') {
+      // No changes - silent success or minimal notification
+      alert('✅ Groups are already in sync');
+    } else if (result.action === 'synced') {
+      // Changes were synced
+      const stats = result.stats;
+      let msg = '✅ Groups synced successfully!\n\n';
+      
+      if (stats.import) {
+        msg += `Local: ${stats.local} groups\n`;
+        msg += `GitHub: ${stats.github} groups\n`;
+        msg += `Merged: ${stats.merged} groups\n\n`;
+        msg += `Import results:\n`;
+        msg += `  Created: ${stats.import.created}\n`;
+        msg += `  Updated: ${stats.import.updated}\n`;
+        msg += `  Skipped: ${stats.import.skipped}`;
+      } else {
+        msg += `Total groups: ${stats.merged}`;
+      }
+      
+      alert(msg);
+    }
+  } catch (error) {
+    console.error('Smart sync failed:', error);
+    alert('❌ Smart sync failed: ' + error.message);
+  } finally {
+    isSyncingGroups.value = false;
+  }
+}
+
+// Edit page - always show metadata dialog first
+function editPage(page) {
+  editingPage.value = page;
+  pageForm.value = {
+    title: page.title,
+    filename: page.filename,
+    group_id: page.group_id
+  };
+  showPageDialog.value = true;
+}
+
+// Edit HTML content - load to editor if has sections_data, otherwise try to parse HTML
+async function editHtmlContent() {
+  const page = editingPage.value;
+  
+  // Close metadata dialog first
+  closePageDialog();
+  
   // If page has sections data, load it into the editor
   if (page.sections_data) {
     try {
@@ -471,28 +650,58 @@ async function editPage(page) {
         }
       }
       
-      // Load sections data into editor
-      editorStore.loadSections(page.sections_data);
+      // Load sections data into editor with page info for update functionality
+      editorStore.loadSections(page.sections_data, {
+        filename: page.filename,
+        title: page.title
+      });
       
       // Close storage manager
       closeManager();
       
       // Show success message
-      alert(`✅ Page "${page.title}" loaded into editor!\n\nYou can now edit and republish it.`);
+      alert(`✅ Page "${page.title}" loaded into editor!\n\nYou can now edit and use the "Update" button to save changes.`);
       
     } catch (error) {
       console.error('Failed to load page to editor:', error);
       alert('❌ Failed to load page into editor');
     }
+  } else if (page.html_content && isEditableHtml(page.html_content)) {
+    // Try to parse HTML and convert to sections
+    try {
+      // Confirm before loading
+      if (editorStore.sections.length > 0) {
+        if (!confirm('⚠️ This page will be converted from HTML to editable format.\n\nThis will replace your current editor content.\n\nDo you want to continue?')) {
+          return;
+        }
+      }
+      
+      // Parse HTML to sections
+      const sections = parseHtmlToSections(page.html_content);
+      
+      if (sections.length === 0) {
+        throw new Error('No valid sections found in HTML');
+      }
+      
+      // Load parsed sections into editor with page info for update functionality
+      editorStore.loadSections(sections, {
+        filename: page.filename,
+        title: page.title
+      });
+      
+      // Close storage manager
+      closeManager();
+      
+      // Show success message
+      alert(`✅ Page "${page.title}" converted and loaded into editor!\n\n${sections.length} section(s) were recovered from the HTML.\n\nYou can now edit and use the "Update" button to save changes.`);
+      
+    } catch (error) {
+      console.error('Failed to parse HTML:', error);
+      alert(`❌ Unable to convert this page to editable format.\n\nError: ${error.message}\n\nThis page cannot be edited in the visual editor.`);
+    }
   } else {
-    // No sections data - show metadata edit dialog
-    editingPage.value = page;
-    pageForm.value = {
-      title: page.title,
-      filename: page.filename,
-      group_id: page.group_id
-    };
-    showPageDialog.value = true;
+    // No sections data and HTML is not editable
+    alert('❌ This page does not have editable HTML content.\n\nOnly pages created in the visual editor can be edited.');
   }
 }
 
@@ -584,8 +793,6 @@ async function copyIframeCode(page, event) {
       button.style.color = '';
       button.style.borderColor = '';
     }, 2000);
-    
-    console.log('Iframe code copied:', iframeCode);
   } catch (error) {
     console.error('Failed to copy iframe code:', error);
     prompt('Copy this iframe code:', iframeCode);
@@ -699,6 +906,164 @@ function getGroupName(groupId) {
   return group ? group.name : '';
 }
 
+// Generate preview image from HTML content
+const generatePreviewFromHtml = async (htmlContent) => {
+  try {
+    // Create a temporary iframe to render the HTML
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '1200px';
+    iframe.style.height = '800px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    // Write HTML content to iframe
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(htmlContent);
+    iframe.contentDocument.close();
+
+    // Wait for content to load
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Dynamically import html2canvas
+    const html2canvas = (await import('html2canvas')).default;
+
+    // Capture the iframe content
+    const canvas = await html2canvas(iframe.contentDocument.body, {
+      backgroundColor: '#ffffff',
+      scale: 0.3, // Lower scale for smaller preview
+      logging: false,
+      useCORS: true,
+      allowTaint: true,
+      width: 1200,
+      height: 800
+    });
+
+    // Remove iframe
+    document.body.removeChild(iframe);
+
+    // Convert to base64
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+    return dataUrl;
+  } catch (error) {
+    console.error('Error generating preview from HTML:', error);
+    return null;
+  }
+};
+
+// Generate thumbnails for pages without preview images
+const generateThumbnailsForPages = async (pageIds) => {
+  let successCount = 0;
+  let errorCount = 0;
+
+  for (const pageId of pageIds) {
+    try {
+      const page = pages.value.find(p => p.id === pageId);
+      if (!page || !page.html_content) continue;
+
+      // Generate preview image
+      const previewImage = await generatePreviewFromHtml(page.html_content);
+      
+      if (previewImage) {
+        // Update page with preview image
+        const response = await fetch(`${API_BASE_URL}/pages/${pageId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: page.title,
+            filename: page.filename,
+            html_content: page.html_content,
+            sections_data: page.sections_data,
+            group_id: page.group_id,
+            sort_order: page.sort_order,
+            preview_image: previewImage
+          })
+        });
+
+        if (response.ok) {
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to generate thumbnail for page ${pageId}:`, error);
+      errorCount++;
+    }
+  }
+
+  return { successCount, errorCount };
+};
+
+// Generate thumbnail for a single page
+const generateSingleThumbnail = async (pageId) => {
+  try {
+    const { successCount, errorCount } = await generateThumbnailsForPages([pageId]);
+    
+    if (successCount > 0) {
+      await loadPages();
+      alert('✅ Thumbnail generated successfully!');
+    } else {
+      alert('❌ Failed to generate thumbnail. Please check console for errors.');
+    }
+  } catch (error) {
+    console.error('Error generating thumbnail:', error);
+    alert('❌ Failed to generate thumbnail.');
+  }
+};
+
+// Generate thumbnails for all pages that don't have one
+const generateAllThumbnails = async () => {
+  if (isGeneratingThumbnails.value) {
+    return; // Prevent multiple simultaneous generations
+  }
+
+  // Find all pages without thumbnails
+  const pagesNeedingThumbnails = pages.value
+    .filter(p => !p.preview_image && p.html_content)
+    .map(p => p.id);
+
+  if (pagesNeedingThumbnails.length === 0) {
+    alert('✅ All pages already have thumbnails!');
+    return;
+  }
+
+  // Show loading message
+  isGeneratingThumbnails.value = true;
+  const confirmGenerate = confirm(
+    `🖼️ Found ${pagesNeedingThumbnails.length} page(s) without thumbnails.\n\n` +
+    `⏳ Generating all thumbnails may take up to 30 seconds.\n` +
+    `Please be patient and do not close this window.\n\n` +
+    `Continue?`
+  );
+
+  if (!confirmGenerate) {
+    isGeneratingThumbnails.value = false;
+    return;
+  }
+
+  try {
+    // Generate thumbnails
+    const { successCount, errorCount } = await generateThumbnailsForPages(pagesNeedingThumbnails);
+    
+    // Refresh pages to show new thumbnails
+    await loadPages();
+    
+    // Show result
+    alert(
+      `🎉 Thumbnail generation complete!\n\n` +
+      `✅ Successfully generated: ${successCount}\n` +
+      `❌ Failed: ${errorCount}`
+    );
+  } catch (error) {
+    console.error('Error generating thumbnails:', error);
+    alert('❌ Failed to generate thumbnails. Please check console for errors.');
+  } finally {
+    isGeneratingThumbnails.value = false;
+  }
+};
+
 // GitHub Pull All function
 const handlePullAllFromGitHub = async () => {
   // Check if GitHub is configured
@@ -731,12 +1096,12 @@ const handlePullAllFromGitHub = async () => {
       return
     }
     
+    // Refresh the pages list to show the new content
+    await loadPages()
+    
     // Show success message
     const fileList = pullData.fileTitles.join(', ')
-    alert(`✅ Successfully pulled ${pullData.files.length} files from GitHub!\n\n📄 Files: ${fileList}\n\nAll content has been loaded into the editor.`)
-    
-    // Refresh the pages list to show any new content
-    await loadPages()
+    alert(`✅ Successfully pulled ${pullData.files.length} files from GitHub!\n\n📄 Files: ${fileList}`)
     
   } catch (error) {
     console.error('Pull all from GitHub error:', error)
@@ -1056,6 +1421,59 @@ onMounted(() => {
   min-width: 220px;
 }
 
+/* Smart Sync Button */
+.btn-smart-sync {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  flex-shrink: 0;
+}
+
+.btn-smart-sync:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.btn-smart-sync:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.btn-smart-sync:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-smart-sync.syncing {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.btn-smart-sync .sync-icon {
+  font-size: 20px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
 /* Dropdown Trigger */
 .dropdown-trigger {
   display: flex;
@@ -1245,7 +1663,46 @@ onMounted(() => {
 
 .view-options {
   display: flex;
-  gap: 4px;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-generate-thumbnails {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  white-space: nowrap;
+}
+
+.btn-generate-thumbnails:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-generate-thumbnails:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-generate-thumbnails.loading {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 .icon-btn {
@@ -1432,6 +1889,46 @@ onMounted(() => {
   color: #1f2937;
 }
 
+.group-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.group-manager-header h3 {
+  margin: 0;
+}
+
+.github-sync-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-sync {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  white-space: nowrap;
+}
+
+.btn-sync:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.btn-sync:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .form-group {
   margin-bottom: 16px;
 }
@@ -1465,6 +1962,43 @@ onMounted(() => {
   gap: 12px;
   justify-content: flex-end;
   margin-top: 24px;
+}
+
+/* Edit Content Section */
+.edit-content-section {
+  margin: 24px 0;
+  padding: 20px;
+  background: #f0f9ff;
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.btn-edit-content {
+  padding: 12px 24px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  max-width: 300px;
+}
+
+.btn-edit-content:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.help-text {
+  margin: 12px 0 0 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
 }
 
 /* Group Manager Modal Styles */
@@ -1580,6 +2114,37 @@ onMounted(() => {
   border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: flex-end;
+}
+
+/* Page Edit Status Badges */
+.editable-badge,
+.convertible-badge,
+.metadata-only-badge {
+  font-size: 0.8em;
+  margin-left: 6px;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.editable-badge:hover,
+.convertible-badge:hover,
+.metadata-only-badge:hover {
+  opacity: 1;
+}
+
+.editable-badge {
+  /* Fully editable - has sections_data */
+  filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
+}
+
+.convertible-badge {
+  /* Can be converted from HTML */
+  filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5));
+}
+
+.metadata-only-badge {
+  /* Metadata only - cannot load into editor */
+  filter: drop-shadow(0 0 2px rgba(156, 163, 175, 0.5));
 }
 </style>
 

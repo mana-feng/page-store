@@ -541,3 +541,111 @@ export async function pullAllFromGitHub() {
   }
 }
 
+/**
+ * Upload groups.json to GitHub repository
+ * @param {string} jsonContent - JSON content of groups
+ * @returns {Promise<Object>} - Upload result
+ */
+export async function uploadGroupsJson(jsonContent) {
+  const octokit = getOctokit();
+  const config = getConfig();
+  
+  if (!octokit || !config) {
+    throw new Error('GitHub is not configured. Please configure GitHub settings first.');
+  }
+
+  const { owner, repo, branch } = config;
+  const path = 'groups.json';
+
+  try {
+    // Check if file already exists
+    let sha = null;
+    try {
+      const { data } = await octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path,
+        ref: branch
+      });
+      sha = data.sha;
+    } catch (error) {
+      // File doesn't exist, which is fine
+      if (error.status !== 404) {
+        throw error;
+      }
+    }
+
+    // Create or update file
+    const response = await octokit.rest.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path,
+      message: sha ? 'Update groups.json' : 'Add groups.json',
+      content: Buffer.from(jsonContent).toString('base64'),
+      branch,
+      ...(sha && { sha })
+    });
+
+    console.log('✅ Groups JSON uploaded to GitHub');
+
+    return {
+      success: true,
+      path,
+      sha: response.data.content.sha,
+      commit: response.data.commit.sha
+    };
+  } catch (error) {
+    console.error('GitHub upload groups JSON error:', error);
+    throw new Error(`Failed to upload groups.json to GitHub: ${error.message}`);
+  }
+}
+
+/**
+ * Download groups.json from GitHub repository
+ * @returns {Promise<Object>} - Groups JSON data
+ */
+export async function downloadGroupsJson() {
+  const octokit = getOctokit();
+  const config = getConfig();
+  
+  if (!octokit || !config) {
+    throw new Error('GitHub is not configured. Please configure GitHub settings first.');
+  }
+
+  const { owner, repo, branch } = config;
+  const path = 'groups.json';
+
+  try {
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref: branch
+    });
+
+    // Decode base64 content
+    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+    const jsonData = JSON.parse(content);
+
+    console.log('✅ Groups JSON downloaded from GitHub');
+
+    return {
+      success: true,
+      data: jsonData,
+      sha: data.sha
+    };
+  } catch (error) {
+    if (error.status === 404) {
+      // File doesn't exist yet
+      console.log('ℹ️  groups.json not found in GitHub repository');
+      return {
+        success: false,
+        notFound: true,
+        message: 'groups.json not found in repository'
+      };
+    }
+    console.error('GitHub download groups JSON error:', error);
+    throw new Error(`Failed to download groups.json from GitHub: ${error.message}`);
+  }
+}
+
