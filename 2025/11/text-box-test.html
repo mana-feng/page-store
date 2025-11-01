@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    <title>Exported Article</title>
+    <!-- 
+        NOTE: To view YouTube videos properly, please:
+        1. Use a local web server (e.g., python -m http.server, Live Server extension)
+        2. OR upload this file to a web hosting service
+        3. Opening directly with file:// protocol may block videos due to browser security
+    -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #b9b9b9;
+            padding: 0;
+            margin: 0;
+        }
+        .article-container {
+            width: 100%;
+            background-color: #b9b9b9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .section {
+            margin: 0 auto;
+            box-sizing: border-box;
+            position: relative;
+            border-top: 2px solid #e0e0e0;
+            /* Fluid padding: smoothly scales with viewport width */
+            padding: clamp(10px, 2vw, 20px);
+            overflow: visible;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            /* Responsive width: use max-width instead of fixed width */
+            width: 100%;
+            /* Smooth transition for real-time responsiveness */
+            transition: padding 0.2s ease;
+        }
+        .text-block {
+            /* Fluid max-width: adapts to viewport */
+            max-width: min(65ch, 95%);
+            width: 100%;
+            margin: 10px auto;
+            padding: clamp(4px, 1vw, 8px);
+            transition: padding 0.2s ease;
+        }
+        .text-block h1 {
+            /* Fluid font size: scales between 1.5em and 2em based on viewport */
+            font-size: clamp(1.5em, 4vw, 2em);
+            font-weight: 700;
+            margin: 0.67em 0;
+            line-height: 1.2;
+        }
+        .text-block h2 {
+            /* Fluid font size: scales between 1.25em and 1.5em */
+            font-size: clamp(1.25em, 3vw, 1.5em);
+            font-weight: 700;
+            margin: 0.83em 0;
+            line-height: 1.3;
+        }
+        .text-block p {
+            /* Fluid font size for better readability on all screens */
+            font-size: clamp(0.95em, 1.5vw, 1em);
+            line-height: 1.6;
+            margin: 1em 0;
+        }
+        .text-block strong {
+            font-weight: 700;
+        }
+        .text-block em {
+            font-style: italic;
+        }
+        .text-block a {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+        .text-block a:hover {
+            color: #1d4ed8;
+        }
+        .text-block ul, .text-block ol {
+            margin: 1em 0;
+            padding-left: 2em;
+        }
+        .text-block li {
+            margin: 0.5em 0;
+        }
+        .image-block {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: clamp(8px, 1.5vw, 10px) 0;
+        }
+        .image-block img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            /* Smooth transition for image resizing */
+            transition: all 0.2s ease;
+        }
+        .fullwidth-image-block {
+            width: 100%;
+            margin: clamp(8px, 1.5vw, 10px) 0;
+        }
+        .fullwidth-image-block img {
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            display: block;
+            transition: all 0.2s ease;
+        }
+        .float-image-block {
+            margin: clamp(8px, 1.5vw, 10px);
+            transition: all 0.2s ease;
+        }
+        .float-image-block img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+        .video-block {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: clamp(8px, 1.5vw, 10px) 0;
+        }
+        .video-block iframe {
+            max-width: 100%;
+            border: none;
+            border-radius: 4px;
+            /* Maintain aspect ratio */
+            aspect-ratio: 16 / 9;
+        }
+        .video-fallback {
+            max-width: 100%;
+            transition: all 0.2s ease;
+        }
+        .text-align-left {
+            text-align: left;
+        }
+        .text-align-center {
+            text-align: center;
+        }
+        .info-banner {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 12px 20px;
+            margin: 0;
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.5;
+            width: 100%;
+        }
+        .info-banner a {
+            color: #004085;
+            text-decoration: underline;
+        }
+        .close-banner {
+            background: transparent;
+            border: none;
+            color: #856404;
+            font-size: 20px;
+            cursor: pointer;
+            float: right;
+            padding: 0;
+            margin: -4px 0 0 10px;
+        }
+        
+        /* Parallax Section Styles */
+        .parallax-container {
+            position: relative;
+            width: 100%;
+        }
+        
+        .parallax-bg-wrapper {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            z-index: 0;
+        }
+        
+        .parallax-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0;
+            transition: opacity 0.6s ease-in-out;
+        }
+        
+        .parallax-bg.active {
+            opacity: 1;
+        }
+        
+        .parallax-content {
+            position: relative;
+            z-index: 1;
+            pointer-events: none;
+        }
+        
+        .parallax-slide {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* Fluid padding for parallax slides */
+            padding: clamp(1rem, 3vw, 2rem);
+            transition: padding 0.2s ease;
+        }
+        
+        .parallax-slide-content {
+            /* Fluid max-width for parallax content */
+            max-width: min(800px, 95%);
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            /* Fluid padding */
+            padding: clamp(1.5rem, 4vw, 3rem);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            pointer-events: auto;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            transition: padding 0.2s ease;
+        }
+        .parallax-slide-content * {
+            max-width: 100%; 
+        }
+
+        .parallax-slide-content.transparent {
+            background: transparent;
+            box-shadow: none;
+        }
+
+        /* ========== Responsive Design - Media Queries ========== */
+        /* Note: Most responsive behavior is now handled by clamp() and fluid units above */
+        /* These media queries provide additional fine-tuning for specific breakpoints */
+        
+        /* Desktop (default): 1200px+ */
+        @media (min-width: 1200px) {
+            .section {
+                max-width: 1200px;
+            }
+        }
+        
+        /* Laptop/Tablet landscape: 768px - 1199px */
+        @media (min-width: 768px) and (max-width: 1199px) {
+            .section {
+                max-width: min(960px, 95vw);
+            }
+            .text-block {
+                max-width: min(55ch, 90%);
+            }
+            .parallax-slide-content {
+                max-width: min(600px, 90%);
+            }
+        }
+        
+        /* Tablet portrait: 480px - 767px */
+        @media (min-width: 480px) and (max-width: 767px) {
+            .section {
+                max-width: 100%;
+            }
+            .text-block {
+                max-width: min(45ch, 95%);
+            }
+            .parallax-slide-content {
+                max-width: 95%;
+            }
+            .float-image-block {
+                float: none !important;
+                margin: 10px auto !important;
+                text-align: center;
+                max-width: 90%;
+            }
+        }
+        
+        /* Mobile: 0 - 479px */
+        @media (max-width: 479px) {
+            .section {
+                max-width: 100%;
+                min-height: auto !important;
+            }
+            .text-block {
+                max-width: 100%;
+            }
+            .parallax-slide-content {
+                max-width: 95%;
+                border-radius: 4px;
+            }
+            .float-image-block {
+                float: none !important;
+                margin: 10px auto !important;
+                text-align: center;
+                max-width: 100%;
+            }
+            .info-banner {
+                font-size: clamp(11px, 2.5vw, 14px);
+                padding: clamp(6px, 1.5vw, 12px);
+            }
+            /* Optimize video aspect ratio for mobile */
+            .video-block iframe,
+            .video-fallback {
+                width: 100%;
+                height: auto;
+            }
+        }
+        
+        /* Ultra-wide screens: 1920px+ */
+        @media (min-width: 1920px) {
+            .section {
+                max-width: 1400px;
+            }
+            .text-block {
+                max-width: 75ch;
+            }
+        }
+    </style>
+    <script>
+        function closeBanner() {
+            document.getElementById('info-banner').style.display = 'none';
+        }
+        
+        // Load YouTube video - handles both file:// and http:// protocols
+        function loadYouTubeVideo(videoId, width, height) {
+            const container = document.getElementById('video-' + videoId);
+            if (!container) return;
+            
+            const fallback = container.querySelector('.video-fallback');
+            const iframe = container.querySelector('.video-iframe');
+            
+            // Check if we're on file:// protocol
+            if (window.location.protocol === 'file:') {
+                // Open YouTube in new tab as fallback
+                window.open('https://www.youtube.com/watch?v=' + videoId, '_blank');
+            } else {
+                // We're on http/https, show iframe
+                if (fallback) fallback.style.display = 'none';
+                if (iframe) {
+                    iframe.style.display = 'block';
+                    // Auto-play when clicked
+                    const currentSrc = iframe.src;
+                    if (currentSrc.indexOf('autoplay') === -1) {
+                        iframe.src = currentSrc + '?autoplay=1';
+                    }
+                }
+            }
+        }
+        
+        // Auto-detect environment and show appropriate version
+        window.addEventListener('load', function() {
+            const isFileProtocol = window.location.protocol === 'file:';
+            
+            if (isFileProtocol) {
+                // Show warning banner
+                const banner = document.getElementById('info-banner');
+                if (banner) banner.style.display = 'block';
+                
+                // Keep showing fallback thumbnails (already visible by default)
+            } else {
+                // We're on a web server, try to show iframes directly
+                const iframes = document.querySelectorAll('.video-iframe');
+                const fallbacks = document.querySelectorAll('.video-fallback');
+                
+                // Try to show iframes, but keep fallbacks as clickable option
+                // This provides best UX: clickable thumbnails that load videos on demand
+            }
+        });
+        
+        // Parallax scrolling effect
+        document.addEventListener('DOMContentLoaded', function() {
+            const parallaxContainers = document.querySelectorAll('.parallax-container');
+            
+            parallaxContainers.forEach(container => {
+                const backgrounds = container.querySelectorAll('.parallax-bg');
+                const slides = container.querySelectorAll('.parallax-slide');
+                
+                if (backgrounds.length === 0 || slides.length === 0) return;
+                
+                function updateParallax() {
+                    const containerTop = container.getBoundingClientRect().top;
+                    const containerHeight = container.offsetHeight;
+                    const windowHeight = window.innerHeight;
+                    
+                    // Calculate scroll progress within container
+                    const scrollProgress = -containerTop / (containerHeight - windowHeight);
+                    const clampedProgress = Math.max(0, Math.min(1, scrollProgress));
+                    
+                    // Calculate which slide should be active
+                    const slideIndex = Math.floor(clampedProgress * slides.length);
+                    const activeIndex = Math.min(slideIndex, slides.length - 1);
+                    
+                    // Update background visibility
+                    backgrounds.forEach((bg, index) => {
+                        if (index === activeIndex) {
+                            bg.classList.add('active');
+                        } else {
+                            bg.classList.remove('active');
+                        }
+                    });
+                }
+                
+                // Initial update
+                updateParallax();
+                
+                // Update on scroll
+                window.addEventListener('scroll', updateParallax, { passive: true });
+                window.addEventListener('resize', updateParallax, { passive: true });
+            });
+        });
+    </script>
+</head>
+<body>
+    <div id="info-banner" class="info-banner" style="display: none;">
+        <button class="close-banner" onclick="closeBanner()">&times;</button>
+        <strong>ℹ️ File Mode:</strong> Click video thumbnails to watch on YouTube. 
+        For embedded playback, use a <strong>local web server</strong> (<code>python -m http.server</code>) 
+        or <strong>upload to web hosting</strong>.
+    </div>
+    <div class="article-container">
+        <section class="section" style="min-height: 300px; background-color: #ffffff;">
+            <figure class="fullwidth-image-block" style="width: 100%; margin: 0; padding: 0;">
+                <img src="https://mana-feng.github.io/parallex-plugin-for-newsworthy//2025/11/images/a.png" style="width: 100%; max-height: 400px; object-fit: cover; object-position: center; display: block;" alt="Fullwidth Image" />
+            </figure>
+        </section>
+        <section class="section" style="min-height: 300px; background-color: #ffffff;">
+        </section>
+    </div>
+</body>
+</html>
