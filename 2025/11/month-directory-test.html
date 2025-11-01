@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    <title>Exported Article</title>
+    <!-- 
+        NOTE: To view YouTube videos properly, please:
+        1. Use a local web server (e.g., python -m http.server, Live Server extension)
+        2. OR upload this file to a web hosting service
+        3. Opening directly with file:// protocol may block videos due to browser security
+    -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #b9b9b9;
+            padding: 0;
+            margin: 0;
+        }
+        .article-container {
+            width: 100%;
+            background-color: #b9b9b9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .section {
+            margin: 0 auto;
+            box-sizing: border-box;
+            position: relative;
+            border-top: 2px solid #e0e0e0;
+            padding: 16px 20px;
+            overflow: visible;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .text-block {
+            max-width: 65ch;
+            width: 100%;
+            margin: 10px auto;
+            padding: 8px;
+        }
+        .text-block h1 {
+            font-size: 2em;
+            font-weight: 700;
+            margin: 0.67em 0;
+            line-height: 1.2;
+        }
+        .text-block h2 {
+            font-size: 1.5em;
+            font-weight: 700;
+            margin: 0.83em 0;
+            line-height: 1.3;
+        }
+        .text-block p {
+            font-size: 1em;
+            line-height: 1.6;
+            margin: 1em 0;
+        }
+        .text-block strong {
+            font-weight: 700;
+        }
+        .text-block em {
+            font-style: italic;
+        }
+        .text-block a {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+        .text-block a:hover {
+            color: #1d4ed8;
+        }
+        .text-block ul, .text-block ol {
+            margin: 1em 0;
+            padding-left: 2em;
+        }
+        .text-block li {
+            margin: 0.5em 0;
+        }
+        .image-block {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .image-block img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+        .video-block {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .video-block iframe {
+            max-width: 100%;
+            border: none;
+            border-radius: 4px;
+        }
+        .text-align-left {
+            text-align: left;
+        }
+        .text-align-center {
+            text-align: center;
+        }
+        .info-banner {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 12px 20px;
+            margin: 0;
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.5;
+            width: 100%;
+        }
+        .info-banner a {
+            color: #004085;
+            text-decoration: underline;
+        }
+        .close-banner {
+            background: transparent;
+            border: none;
+            color: #856404;
+            font-size: 20px;
+            cursor: pointer;
+            float: right;
+            padding: 0;
+            margin: -4px 0 0 10px;
+        }
+        
+        /* Parallax Section Styles */
+        .parallax-container {
+            position: relative;
+            width: 100%;
+        }
+        
+        .parallax-bg-wrapper {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            z-index: 0;
+        }
+        
+        .parallax-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0;
+            transition: opacity 0.6s ease-in-out;
+        }
+        
+        .parallax-bg.active {
+            opacity: 1;
+        }
+        
+        .parallax-content {
+            position: relative;
+            z-index: 1;
+            pointer-events: none;
+        }
+        
+        .parallax-slide {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .parallax-slide-content {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 3rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            pointer-events: auto;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+        .parallax-slide-content * {
+            max-width: 100%; 
+        }
+
+        .parallax-slide-content.transparent {
+            background: transparent;
+            box-shadow: none;
+        }
+    </style>
+    <script>
+        function closeBanner() {
+            document.getElementById('info-banner').style.display = 'none';
+        }
+        
+        // Load YouTube video - handles both file:// and http:// protocols
+        function loadYouTubeVideo(videoId, width, height) {
+            const container = document.getElementById('video-' + videoId);
+            if (!container) return;
+            
+            const fallback = container.querySelector('.video-fallback');
+            const iframe = container.querySelector('.video-iframe');
+            
+            // Check if we're on file:// protocol
+            if (window.location.protocol === 'file:') {
+                // Open YouTube in new tab as fallback
+                window.open('https://www.youtube.com/watch?v=' + videoId, '_blank');
+            } else {
+                // We're on http/https, show iframe
+                if (fallback) fallback.style.display = 'none';
+                if (iframe) {
+                    iframe.style.display = 'block';
+                    // Auto-play when clicked
+                    const currentSrc = iframe.src;
+                    if (currentSrc.indexOf('autoplay') === -1) {
+                        iframe.src = currentSrc + '?autoplay=1';
+                    }
+                }
+            }
+        }
+        
+        // Auto-detect environment and show appropriate version
+        window.addEventListener('load', function() {
+            const isFileProtocol = window.location.protocol === 'file:';
+            
+            if (isFileProtocol) {
+                // Show warning banner
+                const banner = document.getElementById('info-banner');
+                if (banner) banner.style.display = 'block';
+                
+                // Keep showing fallback thumbnails (already visible by default)
+            } else {
+                // We're on a web server, try to show iframes directly
+                const iframes = document.querySelectorAll('.video-iframe');
+                const fallbacks = document.querySelectorAll('.video-fallback');
+                
+                // Try to show iframes, but keep fallbacks as clickable option
+                // This provides best UX: clickable thumbnails that load videos on demand
+            }
+        });
+        
+        // Parallax scrolling effect
+        document.addEventListener('DOMContentLoaded', function() {
+            const parallaxContainers = document.querySelectorAll('.parallax-container');
+            
+            parallaxContainers.forEach(container => {
+                const backgrounds = container.querySelectorAll('.parallax-bg');
+                const slides = container.querySelectorAll('.parallax-slide');
+                
+                if (backgrounds.length === 0 || slides.length === 0) return;
+                
+                function updateParallax() {
+                    const containerTop = container.getBoundingClientRect().top;
+                    const containerHeight = container.offsetHeight;
+                    const windowHeight = window.innerHeight;
+                    
+                    // Calculate scroll progress within container
+                    const scrollProgress = -containerTop / (containerHeight - windowHeight);
+                    const clampedProgress = Math.max(0, Math.min(1, scrollProgress));
+                    
+                    // Calculate which slide should be active
+                    const slideIndex = Math.floor(clampedProgress * slides.length);
+                    const activeIndex = Math.min(slideIndex, slides.length - 1);
+                    
+                    // Update background visibility
+                    backgrounds.forEach((bg, index) => {
+                        if (index === activeIndex) {
+                            bg.classList.add('active');
+                        } else {
+                            bg.classList.remove('active');
+                        }
+                    });
+                }
+                
+                // Initial update
+                updateParallax();
+                
+                // Update on scroll
+                window.addEventListener('scroll', updateParallax, { passive: true });
+                window.addEventListener('resize', updateParallax, { passive: true });
+            });
+        });
+    </script>
+</head>
+<body>
+    <div id="info-banner" class="info-banner" style="display: none;">
+        <button class="close-banner" onclick="closeBanner()">&times;</button>
+        <strong>ℹ️ File Mode:</strong> Click video thumbnails to watch on YouTube. 
+        For embedded playback, use a <strong>local web server</strong> (<code>python -m http.server</code>) 
+        or <strong>upload to web hosting</strong>.
+    </div>
+    <div class="article-container">
+        <section class="section" style="width: 1200px; min-height: 300px; background-color: #ffffff;">
+            <figure class="image-block">
+                <img src="http://localhost:3001/api/images/temp/9edc3565-738b-48ad-a148-04cb42c06932" style="width: 300px; height: 300px; object-fit: contain; object-position: center;" alt="Image" />
+            </figure>
+        </section>
+        <section class="section" style="width: 1200px; min-height: 300px; background-color: #ffffff;">
+            <figure class="fullwidth-image-block" style="width: 100%; margin: 0; padding: 0;">
+                <img src="http://localhost:3001/api/images/temp/bc5a39a5-cac6-4d3b-ab08-0ab877d0b39d" style="width: 100%; height: 400px; object-fit: cover; object-position: center; display: block;" alt="Fullwidth Image" />
+            </figure>
+        </section>
+        <section class="section" style="width: 1200px; min-height: 300px; background-color: #ffffff;">
+            <figure class="float-image-block" style="float: left; margin: 0 20px 10px 0;">
+                <img src="http://localhost:3001/api/images/temp/b5c66607-6189-4d35-a778-ace5f0d045fb" style="width: 300px; height: 300px; object-fit: contain; object-position: center; display: block;" alt="Float Image" />
+            </figure>
+        </section>
+        <section class="section" style="width: 1200px; min-height: 300px; background-color: #ffffff;">
+            <div class="video-block" id="video-GywirQDZ6UQ">
+                <div class="video-fallback" style="position: relative; width: 560px; height: 315px; max-width: 100%; background: #000; border-radius: 4px; cursor: pointer;" onclick="loadYouTubeVideo('GywirQDZ6UQ', 560, 315)">
+                    <img src="https://img.youtube.com/vi/GywirQDZ6UQ/maxresdefault.jpg" alt="Video thumbnail" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;" onerror="this.src='https://img.youtube.com/vi/GywirQDZ6UQ/hqdefault.jpg'" />
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 68px; height: 48px; background: rgba(255,0,0,0.9); border-radius: 12px; cursor: pointer;">
+                        <svg height="100%" version="1.1" viewBox="0 0 68 48" width="100%"><path d="M66.52,7.74c-0.78-2.93-2.49-5.41-5.42-6.19C55.79,.13,34,0,34,0S12.21,.13,6.9,1.55 C3.97,2.33,2.27,4.81,1.48,7.74C0.06,13.05,0,24,0,24s0.06,10.95,1.48,16.26c0.78,2.93,2.49,5.41,5.42,6.19 C12.21,47.87,34,48,34,48s21.79-0.13,27.1-1.55c2.93-0.78,4.64-3.26,5.42-6.19C67.94,34.95,68,24,68,24S67.94,13.05,66.52,7.74z" fill="#f00"></path><path d="M 45,24 27,14 27,34" fill="#fff"></path></svg>
+                    </div>
+                    <div style="position: absolute; bottom: 8px; left: 8px; right: 8px; color: white; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">Click to play video</div>
+                </div>
+                <iframe class="video-iframe" width="560" height="315" src="https://www.youtube-nocookie.com/embed/GywirQDZ6UQ" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy" style="display: none; max-width: 100%; border-radius: 4px;"></iframe>
+            </div>
+        </section>
+        <section class="section" style="width: 1200px; min-height: 300px; background-color: #ffffff;">
+        </section>
+        <section class="section" style="width: 1200px; min-height: 300px; background-color: #ffffff;">
+        </section>
+        <div class="parallax-container" id="parallax-1762002898627-y82rkgm9x">
+            <div class="parallax-bg-wrapper">
+            <div class="parallax-bg active" style="background-image: url('http://localhost:3001/api/images/temp/b81fa0e6-86a9-4029-a02a-5b5f8dd57590');"></div>
+            <div class="parallax-bg" style="background-image: url('http://localhost:3001/api/images/temp/0fa8c2db-2532-4a51-8de5-aba7dcc7d5c0');"></div>
+            </div>
+            <div class="parallax-content">
+            <div class="parallax-slide" data-slide-index="0">
+                <div class="parallax-slide-content transparent">
+                </div>
+            </div>
+            <div class="parallax-slide" data-slide-index="1">
+                <div class="parallax-slide-content transparent">
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
